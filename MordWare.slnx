@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MordWare.App/MordWare.App.csproj">
+      <Platform Project="x86" />
+    </Project>
+    <Project Path="src/MordWare.Core/MordWare.Core.csproj" />
+    <Project Path="src/MordWare.Integrations/MordWare.Integrations.csproj" />
+    <Project Path="src/MordWare.Persistence/MordWare.Persistence.csproj" />
+    <Project Path="src/MordWare.Vehicles/MordWare.Vehicles.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MordWare.Tests.Architecture/MordWare.Tests.Architecture.csproj" />
+    <Project Path="tests/MordWare.Tests.Unit/MordWare.Tests.Unit.csproj" />
+  </Folder>
+</Solution>

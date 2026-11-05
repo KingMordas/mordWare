@@ -1,0 +1,17 @@
+<Project>
+  <!-- Central package management: one version per dependency for the whole solution.
+       Every dependency must be free and OSS-licensed (CLAUDE.md guardrail 1). -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- App (MIT) -->
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.6.5" />
+    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2957" />
+    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools.WinApp" Version="0.7.1" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <!-- Tests: xUnit v3 on Microsoft.Testing.Platform (Apache-2.0), ArchUnitNET (Apache-2.0) -->
+    <PackageVersion Include="xunit.v3" Version="4.0.2" />
+    <PackageVersion Include="TngTech.ArchUnitNET" Version="0.13.5" />
+  </ItemGroup>
+</Project>

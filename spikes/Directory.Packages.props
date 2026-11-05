@@ -1,0 +1,13 @@
+<Project>
+  <!-- Spike-only package versions. MSBuild picks the nearest Directory.Packages.props, so this file
+       imports the root one (xunit.v3, ...) and adds what the spikes need, leaving the app's central
+       versions untouched until a roadmap item adopts a package on purpose.
+       Every dependency must be free and OSS-licensed (CLAUDE.md guardrail 1). -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Packages.props', '$(MSBuildThisFileDirectory)..'))" />
+  <ItemGroup>
+    <!-- S1 encryption spike. All MIT; SQLite3MC pulls SQLitePCLRaw.core 3.x (Apache-2.0). -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite.Core" Version="10.0.14" />
+    <PackageVersion Include="SQLite3MC.PCLRaw.bundle" Version="2.6.1" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.14" />
+  </ItemGroup>
+</Project>

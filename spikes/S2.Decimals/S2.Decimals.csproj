@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- S2 decimal-storage spike (roadmap [S2], change spike-decimal-storage). Throwaway: NOT in MordWare.slnx,
+       not named MordWare.* (the architecture tests never load it), referenced by nothing, and independent
+       of S1 (own helper copies). Foundation deletes it once the proven pattern moves into src/. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite.Core" />
+    <PackageReference Include="SQLite3MC.PCLRaw.bundle" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

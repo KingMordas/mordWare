@@ -1,0 +1,57 @@
+## .NET / Visual Studio
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+*.userosscache
+artifacts/
+
+# Build logs
+*.log
+*.binlog
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+# NuGet
+*.nupkg
+*.snupkg
+project.lock.json
+
+# MSIX packaging output and signing material (never commit certificates)
+AppPackages/
+BundleArtifacts/
+*.msix
+*.msixbundle
+*.msixupload
+*.appx
+*.appxbundle
+*.appxupload
+*.pfx
+*.cer
+
+# Publish output
+publish/
+PublishScripts/
+
+# Code analysis and tooling
+_ReSharper*/
+*.DotSettings.user
+*.dotCover
+.idea/
+
+# Generated files
+Generated\ Files/
+*_wpftmp.csproj
+
+# Local Claude Code state (commands are tracked; personal settings are not)
+.claude/settings.local.json
+.claude/work/
+
+# Public-safety deny list: the owner's private words (real name, e-mail, local names).
+# Read by scripts/check-public-safety.ps1; never committed (docs/public-safety.md).
+.public-safety.local.txt

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AppTitle" xml:space="preserve">
+    <value>mordWare</value>
+    <comment>Main window title (PROD). Brand name: always lowercase m, capital W.</comment>
+  </data>
+  <data name="AppTitleDev" xml:space="preserve">
+    <value>mordWare (SVILUPPO)</value>
+    <comment>Main window title of the DEV edition.</comment>
+  </data>
+  <data name="DevBadgeText" xml:space="preserve">
+    <value>SVIL</value>
+    <comment>Short DEV marker shown in the title bar of the DEV edition.</comment>
+  </data>
+  <data name="DevBadgeTooltip" xml:space="preserve">
+    <value>Edizione di sviluppo: non contiene mai i tuoi dati reali.</value>
+    <comment>Tooltip of the DEV marker.</comment>
+  </data>
+  <data name="WelcomeTextBlock.Text" xml:space="preserve">
+    <value>Benvenuto in mordWare.</value>
+    <comment>Placeholder content of the empty main page.</comment>
+  </data>
+</root>

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Public-safety check on the staged changes and the commit identity (docs/public-safety.md).
+# Enabled with: git config core.hooksPath .githooks   -- never bypass it.
+if command -v pwsh >/dev/null 2>&1; then ps=pwsh; else ps=powershell.exe; fi
+exec "$ps" -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/check-public-safety.ps1 -Staged

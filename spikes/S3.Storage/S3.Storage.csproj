@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- S3 MSIX storage spike (roadmap [S3], change spike-msix-storage). Throwaway: NOT in MordWare.slnx,
+       not named MordWare.* (the architecture tests never load it), referenced by nothing.
+       A packaged WinUI 3 probe app under its own identity (MordWare.Spike.S3), never MordWare or
+       MordWare.Dev, so installing, resetting and uninstalling it cannot touch either edition.
+       Driven from outside by run-checks.ps1 (design D1, D5). Foundation deletes it. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.22621.0</TargetPlatformMinVersion>
+    <RootNamespace>S3.Storage</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x86;x64;ARM64</Platforms>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <WinUISDKReferences>false</WinUISDKReferences>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\*.png" />
+    <Manifest Include="$(ApplicationManifest)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(DisableMsixProjectCapabilityAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
+    <ProjectCapability Include="Msix" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools.WinApp" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite.Core" />
+    <PackageReference Include="SQLite3MC.PCLRaw.bundle" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+  </ItemGroup>
+
+  <!-- Debug only: the spike is never published or released. -->
+  <Target Name="S3DebugOnly" BeforeTargets="Build" Condition="'$(Configuration)' != 'Debug'">
+    <Error Text="spikes/S3.Storage builds in Debug only." />
+  </Target>
+
+</Project>

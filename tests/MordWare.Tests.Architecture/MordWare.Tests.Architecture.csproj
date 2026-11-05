@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="TngTech.ArchUnitNET" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- Libraries under test, loaded through normal references. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MordWare.Core\MordWare.Core.csproj" />
+    <ProjectReference Include="..\..\src\MordWare.Persistence\MordWare.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\MordWare.Integrations\MordWare.Integrations.csproj" />
+    <ProjectReference Include="..\..\src\MordWare.Vehicles\MordWare.Vehicles.csproj" />
+  </ItemGroup>
+
+  <!--
+    The WinUI App and the unit-test project are build-order-only references: they are built first,
+    then their assemblies are read from disk by path (metadata only, never executed). See design D7.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MordWare.App\MordWare.App.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\MordWare.Tests.Unit\MordWare.Tests.Unit.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
+</Project>

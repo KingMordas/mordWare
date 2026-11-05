@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- S1 encryption spike (roadmap [S1], change spike-encryption). Throwaway: NOT in MordWare.slnx,
+       not named MordWare.* (the architecture tests never load it), referenced by nothing.
+       Foundation deletes it once the proven setup moves into MordWare.Persistence. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite.Core" />
+    <PackageReference Include="SQLite3MC.PCLRaw.bundle" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

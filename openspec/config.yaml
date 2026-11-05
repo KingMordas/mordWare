@@ -1,0 +1,62 @@
+schema: spec-driven
+
+# Project context: constraints for every artifact and operation.
+# Deliberately a pointer, not a copy: CLAUDE.md is loaded in every Claude Code session and is
+# the single source of truth, so copying its guardrails here would let the two drift apart.
+context: |
+  mordWare is a free, open-source (MIT) personal household assistant for Windows 11 (WinUI 3,
+  .NET 10, MVVM): Vehicles, Houses and Finance plus a Home dashboard, one Windows account = one
+  data set, with the data only on the user's own PC. It is moving from MSIX to an unpackaged app
+  delivered by an installer on GitHub Releases (roadmap [D]). CLAUDE.md is binding: its numbered
+  guardrails and its "Definition of done" table apply to every change, and a guardrail always wins
+  over a plan. Read docs/architecture.md before designing, and docs/roadmap.md to place the change
+  in the plan. Everything user-facing is bilingual (en-US + it-IT). The owner develops on the same
+  PC that runs the real (PROD) edition, so DEV and PROD data must never mix. The repository is
+  public: every artifact follows docs/public-safety.md (guardrail 11). Flow: explore -> propose ->
+  apply -> archive; in the early phase work happens on main (branches and PRs optional), and a
+  finished propose commits only its openspec/changes/<name>/ folder to main.
+
+# Per-artifact rules: apply only when writing that artifact.
+rules:
+  proposal:
+    - State Scope as explicit In and Out lists.
+    - Name the CLAUDE.md guardrails (by number) the change touches.
+    - State whether the change is user-visible; if it is, it needs a CHANGELOG [Unreleased] entry.
+    - Name the docs/roadmap.md item the change belongs to.
+    - Contain no personal, secret or machine-specific detail and no detail of the earlier web app (guardrail 11, docs/public-safety.md).
+  specs:
+    - Describe observable behavior in user-facing vocabulary; never name files, types, classes, resource keys or migrations.
+    - Every requirement has at least one WHEN/THEN scenario that a test or an explicit verification can check.
+    - Cover the app language (en-US/it-IT texts, dates, numbers, money) in scenarios whenever the behavior displays them.
+    - When behavior touches stored data, cover the DEV/PROD separation in a scenario.
+    - When porting a feature of the earlier web app, describe the behavior mordWare must have on its own terms; never cite its files, specs, paths or internals.
+  design:
+    - Follow the nearest existing pattern in docs/architecture.md instead of inventing a new shape; say which one.
+    - State which module owns each new type and how any cross-module need goes through a contract owned by the providing module.
+    - Any schema change is additive and data-safe on the user's PC (guardrail 5); spell out the migration path and the pre-migration backup.
+    - State how the change keeps DEV and PROD data apart whenever it reads, writes, backs up or imports data (guardrail 7).
+    - For each new dependency, name its license (guardrail 1).
+    - Contain no personal, secret or machine-specific detail and no detail of the earlier web app (guardrail 11, docs/public-safety.md).
+  tasks:
+    - Append, as tracked tasks, every row of CLAUDE.md's "Definition of done" table the change triggers; omit rows that do not apply.
+    - Put each test and each doc update in the task group whose work needs it, never in a trailing catch-all group.
+    - Add a task naming the test (or explicit verification) for every spec scenario; run only focused test filters.
+    - When the change alters the UI, verify it in the running DEV edition (screenshot in en-US, and it-IT when text changes) and close every window opened for the check.
+    - Include a task that updates docs/roadmap.md for the item this change advances.
+    - Include a final task that runs the public-safety check (scripts/check-public-safety.ps1 -All, with the local deny list) and passes before archive.
+    - "Record task results in generic terms: no user-folder paths, machine names, package-family hashes or personal values."
+    - End with a "Workflow follow-up" section (plain bullets) naming /opsx:archive.
+
+# Per-operation guidance: advisory, read by the apply and archive workflows.
+operations:
+  apply:
+    guidance:
+      - Run only the focused tests the touched code warrants (dotnet test --project <path> --filter-class "*Name*"); CI runs the full suite.
+      - If a task conflicts with a CLAUDE.md guardrail, the guardrail wins; pause and propose an artifact update rather than shipping a deviation.
+      - Never run, install or modify the PROD edition (package MordWare) or its data as part of applying a change unless a task explicitly requires it; if one does, remove any test registration afterwards.
+      - Close every app window opened for a check as soon as the check is done.
+      - Do not commit during apply; archive ends with the commit.
+  archive:
+    guidance:
+      - Mark the roadmap item done (or advanced) in docs/roadmap.md as part of the archive.
+      - After the archive, make one Conventional Commit on main covering code, specs and docs, authored as the public project identity and passing the git hooks; push only if the owner asked for it.

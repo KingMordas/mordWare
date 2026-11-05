@@ -1,0 +1,7 @@
+{
+  "profiles": {
+    "MordWare.App (Package)": {
+      "commandName": "MsixPackage"
+    }
+  }
+}

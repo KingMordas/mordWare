@@ -16,7 +16,7 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
 | S2 | Spike: decimal storage on SQLite | done | `2026-11-04-spike-decimal-storage` (archived) |
 | S3 | Spike: MSIX storage and uninstall | done | `2026-11-04-spike-msix-storage` (archived) |
 | R | Open source and public repository | done | `2026-11-05-replan-open-source-delivery` (archived) |
-| S4 | Spike: unpackaged app, installer, updates from GitHub | todo | - |
+| S4 | Spike: unpackaged app, installer, updates from GitHub | done | `spike-unpackaged-installer` |
 | D | Delivery (unpackaged app, editions, release workflow) | todo | - |
 | 1 | Foundation (persistence + shell + Home dashboard frame) | todo | - |
 | U | Update check at startup | todo | - |
@@ -36,7 +36,7 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
 - **Three modules:** Vehicles, Houses and Finance, with the same features as their earlier web versions but a **new UI and UX**: the old screens are input, not a template. A main **Home dashboard** gives the app its "household assistant" context. Pantry is retired and will not be ported.
 - **One Windows account = one data set.** No profiles, logins or roles. "Family" or "household" is the app's tone, not a multi-user feature.
 - **Delivery.** No code signing, and no Microsoft Store for now (a Store edition, which Microsoft signs, stays possible later). An unsigned MSIX cannot be installed ([S3]), so mordWare becomes an **unpackaged** app with a per-user installer published on **GitHub Releases** and linked from the project website. Windows SmartScreen will warn on first run; that is accepted.
-- **Releases.** A pushed `v*.*.*` tag on `main` builds, tests and publishes a release. There are **no releases before v1.0.0**, which ships once all three modules are complete and working.
+- **Releases.** A pushed `v*.*.*` tag on `main` builds, tests and publishes a release. There are **no releases before v1.0.0**, which ships once all three modules are complete and working, and no `v*.*.*` tags before it. The one recorded exception is [S4]'s temporary `s4-feed-*` pre-releases: never `v*.*.*`, on a Velopack channel of their own, published and deleted only with the owner's approval at each step, and deleted right after the check.
 - **Updates.** The app checks GitHub Releases at startup. The check is on by default, can be turned off, sends no user data, and installs only after the user clicks "Update".
 
 ## [0] Bootstrap
@@ -128,7 +128,7 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
   - Documents was redirected into OneDrive (Known Folder Move) on the test PC.
 - **Question:** where do the live database and the backups live, given that uninstall deletes the package's LocalState?
 - **Decisions** (explore 2026-11-04, validated by the checks below):
-  - **Live database:** package LocalState, per edition. Never in a synced folder. **(package-only; [S4]/[D] decide the unpackaged location)**
+  - **Live database:** package LocalState, per edition. Never in a synced folder. **(package-only; [S4] decided the unpackaged location: `%LOCALAPPDATA%\mordWare Data`)**
   - **Backups:** a folder the user chooses, outside the app's install folder and outside AppData.
     - The default is `Documents\mordWare Backups` (PROD) or `Documents\mordWare Backups (DEV)`, confirmed by the user on first run, never chosen silently.
     - If Documents is synced by OneDrive, so are the backups; that is fine, because they are encrypted and written whole.
@@ -174,22 +174,34 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
 
 ## [S4] Spike: unpackaged app, installer, updates from GitHub
 
-- **Status:** todo (next after [R])
+- **Status:** done (2026-11-05). Change `spike-unpackaged-installer`, archived as `openspec/changes/archive/2026-11-05-spike-unpackaged-installer/` (no specs: a spike changes no app behavior). Proof: `spikes/S4.Installer`, an unpackaged WinUI 3 probe app with Velopack (packIds `MordWare.Spike.S4` and `MordWare.Spike.S4.Dev`), its driver `run-checks.ps1` and its binary scanner `scan-package.ps1`, outside the solution; results per check in the change's task notes.
+- **Conditions:** Windows build 26300, x64; .NET SDK 10.0.403, Windows App SDK 2.6.5, Velopack and `vpk` 1.2.161 (MIT). Per user, no admin rights, and no Windows setting changed (Smart App Control was off on the test PC and stayed untouched; Windows Sandbox is not enabled and was not used).
 - **Question:** how does an unpackaged WinUI 3 mordWare install, upgrade, update itself from GitHub Releases and uninstall, without signing, and where does each edition's data live?
-- **Candidate:** Velopack (MIT): a per-user `Setup.exe` that installs or upgrades, delta packages, `vpk pack` / `vpk upload github` for CI, and an update API that reads GitHub Releases or a local folder. Alternatives: Inno Setup plus a custom GitHub check, or WiX.
-- **Checks to run:**
-  - Install, upgrade over an existing install, and uninstall, all per user and without admin rights.
-  - Where data should live so that an uninstall or upgrade never deletes it, and so that the installer's own folder never holds it.
-  - DEV next to PROD on the same PC, never sharing data.
-  - The Windows App SDK self-contained in the unpackaged app; the app language override and `.resw` resources working without package identity.
-  - The folder picker working unpackaged (rechecks [S3] (e)).
-  - What the first run of an unsigned installer looks like (SmartScreen), documented for users.
-  - An update found on GitHub Releases, and one from a local test feed (since no release exists before v1.0.0).
-- **Parked notes:** the outcome feeds [D] and re-opens Foundation's storage paths.
+- **Decisions** (explore 2026-11-05, validated by the checks below):
+  - **Installer and updater: Velopack.** Inno Setup and WiX are not needed.
+  - **DEV runs from the build output** for daily work; the installer is for PROD. DEV next to PROD through Velopack was checked once and works.
+  - **Data roots:** `%LOCALAPPDATA%\mordWare Data\` (PROD) and `%LOCALAPPDATA%\mordWare Data (DEV)\`, siblings of Velopack's `%LOCALAPPDATA%\<packId>\`, never inside it.
+  - **Edition from a build constant** (Release = PROD), x64 only.
+- **Outcome:**
+
+  | Check | Result |
+  |---|---|
+  | (a) Install, upgrade, uninstall | PASS. `Setup.exe --silent` installs per user into `%LOCALAPPDATA%\<packId>\` with a per-user uninstall entry and a Start menu shortcut, unelevated. A newer `Setup.exe` upgrades in place; `Update.exe --uninstall` removes folder, entry and shortcut. |
+  | (b) Data survives | PASS. The data root survives upgrade and uninstall. Anything inside the packId folder is deleted by uninstall **and by a Setup over an existing install** (it renames the folder away and installs fresh). Case-only name differences land in the same folder. |
+  | (c) DEV next to PROD | PASS. Two packIds, folders, entries, shortcuts and data roots; uninstalling DEV leaves PROD and its data intact. |
+  | (d) Unpackaged runtime | PASS. The Windows App SDK `Microsoft.Windows.Globalization` language override drives MRT Core `.resw` resources (en-US / it-IT); the `Windows.Globalization` one the app uses today throws unpackaged. The edition follows the build constant. From the build output, update checks turn themselves off. |
+  | (e) Folder picker | PASS. `FolderPicker(AppWindow.Id)` works unpackaged; the path, kept in a file in the data root, is remembered across a restart. |
+  | (f) Unsigned first run | Partly. The browser asked to keep or discard the download; the file had no Mark-of-the-Web, so SmartScreen did not run on the test PC. Documented instead: unsigned files show "Windows protected your PC" / "Run anyway", and **Smart App Control blocks unsigned executables with no per-app override** (see [D]). |
+  | (g) Local-feed update | PASS. 0.1.0 -> 0.1.1 found, nothing applied until asked; then a 0.2 MB delta, `Update.exe apply` after the app exits, restart on 0.1.1, data intact. |
+  | (h) GitHub update | PASS. Two temporary `s4-feed-*` pre-releases (owner-approved, deleted after about 20 minutes). Found and applied anonymously: one API request plus small files, user agent `Velopack/1.2.161`, no token, no user data. |
+  | (i) Binary public safety | PASS. With a deterministic build, `PathMap` and no PDBs, our own files hold no local path or private word. `Setup.exe` embeds the full package byte for byte. Matches in Microsoft and Velopack binaries are upstream content (byte-identical to their packages). |
+  | (j) Entry point | PASS, after a fix: our own `Main` runs Velopack first, then WinUI. **`EnableMsixTooling` must stay `true`**: without it the publish output lacks the app's `.pri` and the installed window crashes. |
+
+- **Superseded:** S3's package-only findings (LocalState, write virtualization, Reset). What still applies from S3: backups, OneDrive, atomic writes, edition binding, restore with the recovery key.
 
 ## [D] Delivery
 
-- **Status:** todo
+- **Status:** todo (next, after [S4])
 - **Scope:**
   - **Unpackage the app:** remove the MSIX manifests and packaging; the app runs from its build output and from the installer.
   - **Editions without package identity.** The edition is fixed by the build (Release = PROD, every other configuration = DEV), with separate app ids, data folders, Start menu entries and icons. This modifies the `app-environments` spec.
@@ -199,7 +211,24 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
   - **GPL-3.0 source offer (section 6).** Every release offers its corresponding source: the GitHub Release links the tagged source archive, and the release notes say so. The installer ships the `LICENSE` text next to `THIRD-PARTY-NOTICES`.
 - **Parked notes:**
   - The release workflow cannot be tested with a real release before v1.0.0; the dry-run mode is its test.
-  - **Platforms.** `MordWare.slnx` maps the App to x86 in every configuration (from the WinUI template), so a solution build produces an x86 app even on x64 and ARM64 PCs. Decide the shipped platforms (x64, ARM64) and the ReadyToRun setting here.
+  - **Platforms (decided in [S4]): x64 only.** No x86 and no ARM64 build; ARM64 PCs run the x64 app under emulation, and ARM64 can be added later as one more Velopack channel. `MordWare.slnx` maps the App to x86 in every configuration (from the WinUI template): fix it to x64. Decide ReadyToRun here, with the [S4] sizes.
+  - **Adopted from [S4]** (reference code in `spikes/S4.Installer`, which [D] deletes once adopted):
+    - **Project:** `WindowsPackageType=None`, `WindowsAppSDKSelfContained=true`, `SelfContained=true`, `RuntimeIdentifier=win-x64`. **Keep `EnableMsixTooling=true`** while removing the manifests: without it `dotnet publish` drops the app's own `.pri` (resources and compiled XAML) and the installed app crashes on its first window, although the build output works. Test the installed window, not only the build output.
+    - **Entry point:** define `DISABLE_XAML_GENERATED_MAIN` and add an own `[STAThread] Main` that calls `VelopackApp.Build().Run()` before anything else, then starts WinUI the way the generated `Main` does (`ComWrappersSupport.InitializeComWrappers`, then `Application.Start` with a `DispatcherQueueSynchronizationContext`).
+    - **Edition:** a build constant (defined only when `Configuration == Release`) replaces `AppEnvironmentResolver.FromPackageName`; `Package.Current` throws unpackaged.
+    - **Language:** `App.ApplyAppLanguage` must use `Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride` (Windows App SDK). The `Windows.Globalization` one throws `InvalidOperationException` without package identity.
+    - **Velopack names:** packIds `MordWare` (PROD) and `MordWare.Dev` (DEV, only if ever installed), titles "mordWare" and "mordWare (DEV)", the default channel `win`, and `--shortcuts StartMenuRoot` (vpk's default also adds a Desktop shortcut).
+    - **Install facts:** `Setup.exe --silent` does not start the app afterwards; a normal install does, once, and fires Velopack's first-run hook. A Setup over an existing install fails if it starts within about 2 s of the previous install or app run ("Failed to remove existing application directory"); it works a few seconds later. In-app updates are not affected.
+    - **Sizes** (Release, ReadyToRun off): `Setup.exe` 102 MB, full package 95 MB, **delta 0.2 MB**, about 400 MB on disk. The publish folder is 233 MB: .NET about 124 MB, Windows App SDK about 109 MB, of which the Windows ML runtime (`onnxruntime.dll`, `DirectML.dll`, about 40 MB) is unused. Try excluding it.
+    - **Binary public safety for releases:** build with `Deterministic`, `ContinuousIntegrationBuild`, `PathMap` and `DebugType=none`, then scan the packages before upload, the way `scan-package.ps1` does: ASCII and UTF-16 strings, own files strictly; third-party matches pass only when the file is byte-identical to its upstream package. Fold it into `scripts/check-public-safety.ps1` (for example a `-Package <path>` mode) and run it in the release workflow before publishing.
+    - **Release upload:** `vpk upload github` reads the token from `VPK_TOKEN` (never put it on the command line); `--targetCommitish` needs a full SHA or a branch name. It also uploads a `Portable.zip` (95 MB): decide whether to ship it.
+  - **Owner decision before v1.0.0: Smart App Control vs. no code signing.** Microsoft documents that Smart App Control (Windows 11) blocks unsigned executables unless they already have a positive reputation, and that "there is currently no way to bypass Smart App Control protection for individual apps"; it checks every executable, not only downloads. Every unsigned release starts again at zero reputation. So on PCs where it is on, an unsigned mordWare will most likely not run at all. Options to weigh: stay unsigned and document it; sign (for example with Artifact Signing, a paid service that needs an identity check, at odds with the free, no-paid-tiers stance of guardrail 1); or a Microsoft Store edition. [S4] does not decide it. Sources: https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation and https://support.microsoft.com/en-us/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions
+  - **First-install wording (draft for the README):**
+    - "mordWare is free and not code-signed, so your browser and Windows may warn you the first time. Download mordWare only from its GitHub Releases page."
+    - "Your browser may say the file is not commonly downloaded: choose Keep."
+    - "If Windows shows "Windows protected your PC", select More info, check that it is the mordWare installer you downloaded from GitHub, then select Run anyway."
+    - "If Windows says that Smart App Control blocked the app: Windows allows no exception for a single app, so mordWare cannot run on this PC while Smart App Control is on." (The final wording depends on the Smart App Control decision above.)
+    - Also say that the installer needs no administrator rights, that uninstalling keeps your data in `%LOCALAPPDATA%\mordWare Data` (and your backups), and how to remove that data completely.
 
 ## [1] Foundation
 
@@ -209,7 +238,9 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
   - **Shell:** navigation, light/dark theme, en-US/it-IT setting, settings page.
   - **Home dashboard frame:** the app's main page, giving it its "personal household assistant" context. Each module contributes its own cards through a contract it owns (guardrail 8), so Home never references module internals.
 - **Parked notes:**
-  - **Re-explore storage after [D].** The live-data location below was designed for package LocalState; the unpackaged location comes from [S4]/[D]. The backup design stays.
+  - **Live data root (decided in [S4]):** `%LOCALAPPDATA%\mordWare Data\` (PROD) and `%LOCALAPPDATA%\mordWare Data (DEV)\`. They are siblings of the installer's `%LOCALAPPDATA%\MordWare\`, never inside it: Velopack deletes that whole folder on uninstall and on a Setup over an existing install, and Windows paths ignore case. The database, the wrapped keys and the logs live in the data root; `IAppPaths` gets an unpackaged implementation over it. The backup design below stays.
+  - **No `ApplicationData` and no `LocalSettings` unpackaged.** Settings (language, theme, backup folder, update check) go in a file in the data root, the way the [S4] probe keeps its picked folder. The Windows App SDK folder picker works unpackaged ([S4] (e)).
+  - **Re-check the storage notes below** that were written for package LocalState (LocalState, Reset, write virtualization): they no longer apply. Replace them with the data root above when Foundation is explored.
   - **DEV/PROD separation** (guardrail 7):
     - An environment marker stored inside each database and checked at startup; a build refuses a database of the other edition.
     - Separate data keys, recovery keys and backup folders per edition.
@@ -270,7 +301,12 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
   - On by default, with a Settings switch to turn it off.
   - When a newer version exists, offer it in-app (localized, guardrail 4); download and install only after the user clicks "Update". Never silent.
   - The request carries nothing about the user (guardrail 2) and a failed check is silent apart from a log line without personal data.
-- **Parked notes:** test it against a local test feed with two locally built versions, since no GitHub release exists before v1.0.0.
+- **Parked notes:**
+  - Test it against a local test feed with two locally built versions, since no GitHub release exists before v1.0.0. `SimpleFileSource` over a folder behaves like GitHub ([S4] (g)).
+  - **Update API (from [S4]):** `UpdateManager(new GithubSource(<repository URL>, accessToken: null, prerelease: false), options)` with the default channel. `CheckForUpdatesAsync`, then show the offer, then `DownloadUpdatesAsync` (it prefers deltas) and `ApplyUpdatesAndRestart`. When `IsInstalled` is false (DEV from the build output) there is no check.
+  - **What a check sends:** one GitHub API request for the release list, then one small feed file per listed release, with the user agent `Velopack/<version>`, an `Accept` header and nothing else: no token, no user or PC data (guardrail 2). The anonymous limit is 60 API requests per hour per IP, far above one check per start.
+  - **Logs (guardrail 6):** Velopack's log messages contain full paths with the Windows user name. Do not forward them to mordWare's log as they are: lower the level, or replace the user-profile prefix first.
+  - `UpdateManager.Channel` is not public in Velopack 1.2.161; the channel is known from the build.
 
 ## [2] morVehicles
 

@@ -50,7 +50,7 @@ A change is done when every row it triggers is satisfied:
 - **The flow is always** `/opsx:explore` -> `/opsx:propose` -> `/opsx:apply` -> `/opsx:archive`. Never skip a step.
 - **Early phase: work on `main`.** Branches and PRs are optional. A finished propose commits the change folder to `main`; archive ends with one Conventional Commit on `main`. Adapting the `/ship` skill (branch + PR + squash) is a roadmap item. Push only when the owner asks.
 - **Commits.** Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, ...), authored as the public project identity (repo-local git config) and passing the `.githooks` checks. `CHANGELOG.md` `## [Unreleased]` is the changelog of record.
-- **Releases.** Only a pushed `v*.*.*` tag on `main` releases (from [D] onward). No tags before v1.0.0.
+- **Releases.** Only a pushed `v*.*.*` tag on `main` releases (from [D] onward). No `v*.*.*` tags before v1.0.0. The one recorded exception to "no tags" is roadmap [S4]'s temporary `s4-feed-*` pre-releases (change `spike-unpackaged-installer`): never `v*.*.*`, on a Velopack channel of their own, published and deleted only with the owner's approval at each step, and deleted right after the check.
 - **"What's next?"**:
   1. Run `openspec list --json`. An active change with open tasks needs **apply**; one with all tasks done needs **archive**.
   2. Otherwise, take the first unfinished item in `docs/roadmap.md`. It needs **explore**, or **propose** if its decisions are already made.

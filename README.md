@@ -22,7 +22,7 @@ mordWare does **not accept contributions**: pull requests and issues are closed 
 
 ## Getting mordWare
 
-Releases will be published on [GitHub Releases](https://github.com/KingMordas/mordWare/releases) as a Windows installer that installs mordWare or upgrades an existing installation, and the app will offer new versions when they appear. The installer is not code-signed, so Windows SmartScreen may warn you the first time you run it.
+Releases will be published on [GitHub Releases](https://github.com/KingMordas/mordWare/releases) as a Windows installer that installs mordWare or upgrades an existing installation, and the app will offer new versions when they appear. The installer is not code-signed, so your browser and Windows SmartScreen may warn you the first time you run it, and on PCs where Windows Smart App Control is turned on it may be blocked.
 
 ## Building from source
 

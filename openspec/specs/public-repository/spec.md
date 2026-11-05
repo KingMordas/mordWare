@@ -7,11 +7,15 @@ Defines what the public mordWare repository guarantees to anyone who reads, uses
 ## Requirements
 
 ### Requirement: Open-source license and as-is notice
-The repository SHALL carry the MIT license, with the copyright held under the public project identity, and SHALL state on its front page that mordWare is a free hobby project developed in spare time and provided as-is, without warranty or guaranteed support.
+The repository SHALL carry the GNU General Public License version 3 as its only license, GPL-3.0-only with no "or any later version" grant, with the copyright held under the public project identity. Its front page SHALL state that mordWare is a free hobby project developed in spare time and provided as-is, without warranty or guaranteed support.
 
 #### Scenario: Visitor reads the terms
 - **WHEN** someone opens the repository's front page
-- **THEN** they see that mordWare is MIT-licensed, free, a spare-time hobby project, and provided as-is without warranty, and the license file names no private person
+- **THEN** they see that mordWare is licensed GPL-3.0-only, free, a spare-time hobby project, and provided as-is without warranty, and the license file is the unmodified GPL-3.0 text and names no private person
+
+#### Scenario: No later-version grant
+- **WHEN** someone reads the project's license statement
+- **THEN** it names version 3 of the GPL only and does not offer "any later version"
 
 ### Requirement: Commits carry only the public identity
 Every commit that is published SHALL carry the public project identity as author and committer, with a no-reply address, and SHALL never carry the owner's real name or personal e-mail.
@@ -74,3 +78,14 @@ The repository SHALL become public only after a full-history safety scan passes,
 #### Scenario: Visibility change
 - **WHEN** the repository is about to be made public
 - **THEN** the full-history scan result and the completed checklist exist, and the owner has approved the step explicitly
+
+### Requirement: No outside contributions
+The project SHALL be open source but closed to contribution: its front page SHALL state that contributions are not accepted, and only the owner SHALL be able to open pull requests or change the code.
+
+#### Scenario: Visitor wants to contribute
+- **WHEN** someone reads the repository's front page looking for how to contribute
+- **THEN** it states that mordWare does not accept contributions, and that forks are welcome under the license
+
+#### Scenario: Outside pull request
+- **WHEN** someone without write access tries to open a pull request or an issue on the repository
+- **THEN** the repository does not let them

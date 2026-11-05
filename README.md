@@ -6,9 +6,19 @@ Your personal household assistant for Windows 11: vehicles, houses and finance, 
 
 ## A free hobby project, provided as is
 
-mordWare is free and open source under the [MIT license](LICENSE). It is a personal project developed in spare time and shared with anyone who finds it useful.
+mordWare is free and open source. It is a personal project developed in spare time and shared with anyone who finds it useful.
 
 It is provided **as is, without warranty of any kind**, and without guaranteed support, response times or a fixed schedule. Keep your own backups.
+
+### License
+
+Copyright (C) 2026 KingMordas.
+
+mordWare is licensed under the **GNU General Public License v3.0 only** (SPDX: `GPL-3.0-only`); see [`LICENSE`](LICENSE). You may use, study, share and modify it under those terms. If you distribute it, modified or not, you must do so under the same license, with the complete source code. This program comes with ABSOLUTELY NO WARRANTY, to the extent permitted by applicable law.
+
+### Contributions
+
+mordWare does **not accept contributions**: pull requests and issues are closed to outside contributors, and only the author changes this repository. You are welcome to fork it under the terms of the license.
 
 ## Getting mordWare
 

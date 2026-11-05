@@ -31,10 +31,11 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
 
 ## Direction (decided 2026-11-05)
 
-- **What mordWare is.** A free, open-source (MIT) personal household assistant for Windows 11: vehicles, houses and finance, with the data only on the user's PC. It is a hobby project developed in spare time and provided as-is.
+- **What mordWare is.** A free, open-source (GPL-3.0-only) personal household assistant for Windows 11: vehicles, houses and finance, with the data only on the user's PC. It is a hobby project developed in spare time and provided as-is.
+- **License and contributions (decided 2026-11-05, change `switch-license-gpl3`).** GPL-3.0-only, open source but closed to contribution: pull requests are limited to the owner and Issues are off. Anyone may redistribute mordWare only under GPL-3.0 with its full source; the owner, as sole copyright holder, may also sell it or ship a Microsoft Store edition under other terms later.
 - **Three modules:** Vehicles, Houses and Finance, with the same features as their earlier web versions but a **new UI and UX**: the old screens are input, not a template. A main **Home dashboard** gives the app its "household assistant" context. Pantry is retired and will not be ported.
 - **One Windows account = one data set.** No profiles, logins or roles. "Family" or "household" is the app's tone, not a multi-user feature.
-- **Delivery.** No Microsoft Store and no code signing. An unsigned MSIX cannot be installed ([S3]), so mordWare becomes an **unpackaged** app with a per-user installer published on **GitHub Releases** and linked from the project website. Windows SmartScreen will warn on first run; that is accepted.
+- **Delivery.** No code signing, and no Microsoft Store for now (a Store edition, which Microsoft signs, stays possible later). An unsigned MSIX cannot be installed ([S3]), so mordWare becomes an **unpackaged** app with a per-user installer published on **GitHub Releases** and linked from the project website. Windows SmartScreen will warn on first run; that is accepted.
 - **Releases.** A pushed `v*.*.*` tag on `main` builds, tests and publishes a release. There are **no releases before v1.0.0**, which ships once all three modules are complete and working.
 - **Updates.** The app checks GitHub Releases at startup. The check is on by default, can be turned off, sends no user data, and installs only after the user clicks "Update".
 
@@ -160,7 +161,7 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
 - **Status:** done (2026-11-05). Change `replan-open-source-delivery`, archived as `openspec/changes/archive/2026-11-05-replan-open-source-delivery/`. Spec: `public-repository`. The go-public steps (squash, push, public visibility) follow the archive commit, each confirmed by the owner.
 - **Scope:**
   - Re-plan this roadmap and the living docs for the new direction.
-  - `LICENSE` (MIT), the as-is / hobby notice.
+  - `LICENSE` and the as-is / hobby notice. The license was first MIT and was replaced by GPL-3.0-only before anything was published (change `switch-license-gpl3`, archived as `openspec/changes/archive/2026-11-05-switch-license-gpl3/`).
   - The public-safety rule (guardrail 11) and its enforcement: [`public-safety.md`](public-safety.md), `scripts/check-public-safety.ps1`, git hooks in `.githooks/`, a gitleaks scan in CI, a Claude Code hook.
   - Remove personal, machine-specific and earlier-web-app details from all tracked content, archived changes included.
   - After archive: the public author identity, a squash into one clean initial commit, push to `KingMordas/mordWare`, and public visibility, each step confirmed by the owner.
@@ -195,6 +196,7 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
   - **`run-dev.ps1` rework:** no Developer Mode or package registration needed.
   - **Release workflow:** a pushed `v*.*.*` tag that points at a commit on `main` builds, tests, packs the installer and publishes the GitHub Release. The version comes from the tag. A manual dry-run mode builds the installer as a workflow artifact without publishing anything. This extends the `development-workflow` spec.
   - **`THIRD-PARTY-NOTICES`** shipped with the installer, for every redistributed dependency's license.
+  - **GPL-3.0 source offer (section 6).** Every release offers its corresponding source: the GitHub Release links the tagged source archive, and the release notes say so. The installer ships the `LICENSE` text next to `THIRD-PARTY-NOTICES`.
 - **Parked notes:**
   - The release workflow cannot be tested with a real release before v1.0.0; the dry-run mode is its test.
   - **Platforms.** `MordWare.slnx` maps the App to x86 in every configuration (from the WinUI template), so a solution build produces an x86 app even on x64 and ARM64 PCs. Decide the shipped platforms (x64, ARM64) and the ReadyToRun setting here.
@@ -216,6 +218,7 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
   - **Backups** on the first launch of the day, before every migration, and on demand ("Back up now" in Settings). Never on exit (decided in [S3]). Retention: 7 daily + 4 weekly + 6 monthly (proposed default).
   - **Language:** replace the hard-coded `AppLanguages.Default` with the user's setting.
   - **Window title:** derive it from the shell's current page (today it is just the brand).
+  - **About and legal notices (GPL-3.0 section 5(d)).** Settings has an About section that shows the copyright ("Copyright (C) 2026 KingMordas"), that there is no warranty, that mordWare is licensed GPL-3.0-only, how to view the license, and where to get the source (the GitHub repository). All of it is localized in en-US and it-IT (guardrail 3).
   - **Encryption (from [S1]; reference code in `spikes/S1.Encryption`):**
     - **Adopt into the root `Directory.Packages.props`:** `SQLite3MC.PCLRaw.bundle`, `Microsoft.EntityFrameworkCore.Sqlite.Core` (never the non-`.Core` package), and `System.Security.Cryptography.ProtectedData`. Then delete `spikes/S1.Encryption` and its entries in `spikes/Directory.Packages.props`.
     - **Make the engine checks permanent tests:** `sqlite3mc_version()` answers, and the build output has no `e_sqlite3`.

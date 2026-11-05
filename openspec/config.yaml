@@ -4,7 +4,7 @@ schema: spec-driven
 # Deliberately a pointer, not a copy: CLAUDE.md is loaded in every Claude Code session and is
 # the single source of truth, so copying its guardrails here would let the two drift apart.
 context: |
-  mordWare is a free, open-source (MIT) personal household assistant for Windows 11 (WinUI 3,
+  mordWare is a free, open-source (GPL-3.0-only) personal household assistant for Windows 11 (WinUI 3,
   .NET 10, MVVM): Vehicles, Houses and Finance plus a Home dashboard, one Windows account = one
   data set, with the data only on the user's own PC. It is moving from MSIX to an unpackaged app
   delivered by an installer on GitHub Releases (roadmap [D]). CLAUDE.md is binding: its numbered

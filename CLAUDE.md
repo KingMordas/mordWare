@@ -4,17 +4,17 @@ Guidance for Claude Code when working in this repository. It is the project's li
 
 ## Overview
 
-**mordWare** is a free, open-source (MIT) personal household assistant for Windows 11: Vehicles, Houses and Finance, plus a Home dashboard, with the data only on the user's own PC and no internet-facing surface. It is a hobby project developed in spare time and provided as-is. It ports the features of an earlier web app with a completely new UI and UX.
+**mordWare** is a free, open-source (GPL-3.0-only) personal household assistant for Windows 11: Vehicles, Houses and Finance, plus a Home dashboard, with the data only on the user's own PC and no internet-facing surface. It is a hobby project developed in spare time and provided as-is, **closed to contribution**: pull requests are limited to the owner and Issues are off. As the sole copyright holder, the owner may also distribute it under other terms (for example through the Microsoft Store). It ports the features of an earlier web app with a completely new UI and UX.
 
 - **Brand vs. code names.** The brand is always written **mordWare** (lowercase m, capital W). Code uses **MordWare**: namespaces, projects, assemblies (`MordWare.Core`, `MordWare.Vehicles`, `MordWare.App`, ...).
 - **Stack.** .NET 10 (`global.json` pins the SDK and selects Microsoft.Testing.Platform). WinUI 3 (Windows App SDK) with MVVM via CommunityToolkit.Mvvm. From the foundation change onward: EF Core + SQLite, encrypted at rest, with a recovery key.
-- **Delivery.** Today the app is packaged as MSIX for development only. Roadmap item [D] makes it an **unpackaged** app shipped by a per-user installer on **GitHub Releases**: no Microsoft Store, no code signing. A pushed `v*.*.*` tag on `main` publishes a release; the first and only planned release is v1.0.0. The app checks GitHub for updates at startup (roadmap [U]).
+- **Delivery.** Today the app is packaged as MSIX for development only. Roadmap item [D] makes it an **unpackaged** app shipped by a per-user installer on **GitHub Releases**: no code signing, and no Microsoft Store for now (a Store edition stays possible later). A pushed `v*.*.*` tag on `main` publishes a release; the first and only planned release is v1.0.0. The app checks GitHub for updates at startup (roadmap [U]).
 - **One Windows account = one data set.** There is no login, no profiles, no roles, no admin area and no e-mail. "Household" is the app's tone, not a multi-user feature.
 - **The earlier web app is a private, read-only reference.** Never modify it from this repo, never copy code from it in bulk, and never put any of its details in this repository (guardrail 11). Port references live outside the repository.
 
 ## Project guardrails (non-negotiable)
 
-1. **Free, OSS-licensed dependencies only.** MIT, Apache-2.0, BSD or similar. No trials, no paid tiers. Check the license before adding any package (central versions live in `Directory.Packages.props`).
+1. **Free, OSS-licensed, GPL-3.0-compatible dependencies only.** MIT, Apache-2.0, BSD, MPL-2.0, LGPL or similar; never GPL-2.0-only, proprietary or "non-commercial" licenses. No trials, no paid tiers. Check the license before adding any package (central versions live in `Directory.Packages.props`).
 2. **No telemetry, analytics or tracking.** Any network call (the update check, FX rates, ...) carries nothing about the user.
 3. **The app's selected language drives every format.** Every displayed text, date, number and money value follows the app language (en-US or it-IT, see `AppLanguages`), never the OS or a hard-coded format. Every user-facing string exists in both `Strings/en-US` and `Strings/it-IT`. Use US spelling.
 4. **No system message boxes in user flows.** Confirmations, alerts and prompts are in-app, localized dialogs (WinUI `ContentDialog`).

@@ -94,13 +94,14 @@ function New-Finding {
 function Get-DenyWords {
     param([string]$Root)
     $path = Join-Path $Root $DenyListName
-    if (-not (Test-Path -LiteralPath $path)) { return @() }
+    # The leading comma keeps an empty list an array: PowerShell turns a returned @() into $null.
+    if (-not (Test-Path -LiteralPath $path)) { return ,([string[]]@()) }
     $words = @()
     foreach ($l in [System.IO.File]::ReadAllLines($path)) {
         $w = $l.Trim()
         if ($w -and -not $w.StartsWith('#')) { $words += $w }
     }
-    return $words
+    return ,([string[]]$words)
 }
 
 function Hide-Value {

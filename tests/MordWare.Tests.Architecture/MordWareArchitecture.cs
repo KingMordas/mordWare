@@ -46,15 +46,23 @@ public static class MordWareArchitecture
             FindBuildOutput(Path.Combine("tests", "MordWare.Tests.Unit"), "MordWare.Tests.Unit.dll"),
         };
 
-        return new ArchLoader()
-            .LoadAssemblies(libraries)
-            .LoadAssemblies(byPath.Select(Assembly.LoadFile).ToArray())
-            .Build();
+        var loader = new ArchLoader().LoadAssemblies(libraries);
+
+        // By file path, never Assembly.LoadFile: ArchUnitNET reads metadata only, so a Release App
+        // built for x86 with ReadyToRun (native code) is read even by a 64-bit test process.
+        foreach (var path in byPath)
+        {
+            loader = loader.LoadFilteredDirectory(Path.GetDirectoryName(path)!, Path.GetFileName(path));
+        }
+
+        return loader.Build();
     }
 
     /// <summary>
     /// Finds <paramref name="fileName"/> under the project's bin folder for the same configuration
-    /// (Debug/Release) this test assembly was built in.
+    /// (Debug/Release) this test assembly was built in: either <c>bin/&lt;Configuration&gt;/</c> or,
+    /// when the solution builds the project for a platform (the App is mapped to x86),
+    /// <c>bin/&lt;Platform&gt;/&lt;Configuration&gt;/</c>. The newest match wins; the AppX layout is never read.
     /// </summary>
     private static string FindBuildOutput(string projectFolder, string fileName)
     {
@@ -71,15 +79,23 @@ public static class MordWareArchitecture
             throw new InvalidOperationException("Repository root (MordWare.slnx) not found above " + here.FullName);
         }
 
-        var bin = Path.Combine(root.FullName, projectFolder, "bin", configuration);
-        var match = Directory.Exists(bin)
-            ? Directory.EnumerateFiles(bin, fileName, SearchOption.AllDirectories)
-                .Where(p => !p.Contains($"{Path.DirectorySeparatorChar}AppX{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(File.GetLastWriteTimeUtc)
-                .FirstOrDefault()
-            : null;
+        var bin = Path.Combine(root.FullName, projectFolder, "bin");
+        var configurationFolders = new List<string> { Path.Combine(bin, configuration) };
+        if (Directory.Exists(bin))
+        {
+            configurationFolders.AddRange(Directory.EnumerateDirectories(bin)
+                .Select(platform => Path.Combine(platform, configuration)));
+        }
+
+        var match = configurationFolders
+            .Where(Directory.Exists)
+            .SelectMany(folder => Directory.EnumerateFiles(folder, fileName, SearchOption.AllDirectories))
+            .Where(p => !p.Contains($"{Path.DirectorySeparatorChar}AppX{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .FirstOrDefault();
 
         return match ?? throw new InvalidOperationException(
-            $"{fileName} not found under {bin}. Build the solution ({configuration}) before running the architecture tests.");
+            $"{fileName} not found under {Path.Combine(bin, configuration)} or {Path.Combine(bin, "<platform>", configuration)}. " +
+            $"Build the solution ({configuration}) before running the architecture tests.");
     }
 }

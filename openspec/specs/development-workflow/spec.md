@@ -24,6 +24,10 @@ The automated test suite SHALL fail when the app's architecture rules are broken
 - **WHEN** the architecture tests run against the solution as delivered by this change
 - **THEN** they all pass
 
+#### Scenario: Release build is checked too
+- **WHEN** the solution is built in Release, as CI builds it, and the architecture tests run against that build
+- **THEN** the tests check the app as built in that configuration and all pass, exactly as they do for a Debug build
+
 ### Requirement: Tests cannot reach the real data location
 The automated test suite SHALL fail if test code depends on the component that resolves an installed edition's real data location.
 

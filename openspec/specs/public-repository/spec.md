@@ -64,6 +64,10 @@ A check SHALL run automatically before every commit and in every CI run. In CI i
 - **WHEN** the coding assistant tries to commit while skipping hooks, or tries to change the repository's visibility
 - **THEN** the action is blocked, and only the owner can perform it
 
+#### Scenario: No private deny list
+- **WHEN** the checks run where no private deny list exists, as in CI or a fresh clone
+- **THEN** every other rule still runs, clean content passes, and the run notes that private words were not checked
+
 ### Requirement: Going public requires a full review
 The repository SHALL become public only after a full-history safety scan passes, a manual review against the published checklist is complete, and the owner gives explicit approval.
 

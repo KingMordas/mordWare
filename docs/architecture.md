@@ -76,7 +76,7 @@ Dependency direction: `App -> modules -> Persistence/Integrations -> Core`, and 
 
 How the tests are built and kept honest:
 - **Module list.** The modules live in `MordWareArchitecture.Modules`. Adding a module means adding its name there (definition of done).
-- **Loading.** The App and the unit-test project are build-order-only references (`ReferenceOutputAssembly="false"`), and their DLLs are read from the same-configuration build output by path. ArchUnitNET reads metadata only, so WinUI never loads in the test process.
+- **Loading.** The App and the unit-test project are build-order-only references (`ReferenceOutputAssembly="false"`), and their DLLs are read by path from the same-configuration build output: `bin\<configuration>\` or, when the solution builds the project for a platform (the App is mapped to x86), `bin\<platform>\<configuration>\`. The newest match wins and the AppX layout is never read. ArchUnitNET reads metadata only (by path, never `Assembly.LoadFile`), so WinUI never loads in the test process, and a Release App built for x86 with ReadyToRun is read by a 64-bit test process too.
 - **Exact-name matching.** Rules select assemblies with `ResideInAssemblyMatching` and an exact-name regex. `ResideInAssembly(string)` only matches the *full* assembly name and would silently select nothing.
 - **A rule that selects nothing fails.** Every rule must match at least one type, except rule 5 while Persistence and Integrations are empty skeletons.
 
@@ -146,7 +146,7 @@ Decided 2026-11-05; built by roadmap items [S4], [D] and [U].
 ## CI
 
 - **Workflow.** `.github/workflows/ci.yml` runs on push to `main` and on pull requests, and cancels superseded runs. Every job runs on `windows-latest` with a timeout.
-- **`build-test` job** (`timeout-minutes: 20`). Restore, Release build with `GenerateAppxPackageOnBuild=false`, then `dotnet test --solution MordWare.slnx -c Release --no-build`.
+- **`build-test` job** (`timeout-minutes: 20`). Restore with `-p:Configuration=Release` (the App enables ReadyToRun in Release, whose runtime pack must be restored for that configuration), Release build with `GenerateAppxPackageOnBuild=false`, then `dotnet test --solution MordWare.slnx -c Release --no-build`.
 - **`public-safety` job** (`timeout-minutes: 10`). Full-history checkout, a pinned gitleaks release verified by SHA-256, then `scripts/check-public-safety.ps1 -History` (every commit's identity, and gitleaks over the whole history), `-All` and `-SelfTest`. Commits in a pull request must therefore use a GitHub no-reply address too.
 - **Cost.** Standard GitHub-hosted runners are free for public repositories; the timeouts stay so a hung job cannot run for hours.
 - **Active from the first push** to `KingMordas/mordWare` (roadmap [R]).

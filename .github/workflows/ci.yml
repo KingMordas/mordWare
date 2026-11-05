@@ -31,8 +31,10 @@ jobs:
           cache: true
           cache-dependency-path: '**/*.csproj'
 
+      # Restore for Release: the App enables ReadyToRun in Release, which needs its runtime pack
+      # restored with the same configuration (NETSDK1094 otherwise).
       - name: Restore
-        run: dotnet restore MordWare.slnx
+        run: dotnet restore MordWare.slnx -p:Configuration=Release
 
       # MSIX generation is off: CI verifies the code, it does not produce packages.
       - name: Build

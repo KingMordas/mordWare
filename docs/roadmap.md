@@ -166,6 +166,10 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
   - After archive: the public author identity, a squash into one clean initial commit, push to `KingMordas/mordWare`, and public visibility, each step confirmed by the owner.
 - **Parked notes:**
   - CI becomes active with the push. Standard GitHub-hosted runners are free for public repositories, but every job keeps a timeout.
+  - **The first CI run failed** and exposed three latent defects, fixed by change `fix-ci-first-run` (archived as `openspec/changes/archive/2026-11-05-fix-ci-first-run/`) before going public:
+    - restore did not use the Release configuration (ReadyToRun runtime pack missing);
+    - the safety script crashed when no private deny list exists (as in CI);
+    - the architecture tests never found or loaded a Release build (platform folder, x86 ReadyToRun output).
 
 ## [S4] Spike: unpackaged app, installer, updates from GitHub
 
@@ -191,7 +195,9 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
   - **`run-dev.ps1` rework:** no Developer Mode or package registration needed.
   - **Release workflow:** a pushed `v*.*.*` tag that points at a commit on `main` builds, tests, packs the installer and publishes the GitHub Release. The version comes from the tag. A manual dry-run mode builds the installer as a workflow artifact without publishing anything. This extends the `development-workflow` spec.
   - **`THIRD-PARTY-NOTICES`** shipped with the installer, for every redistributed dependency's license.
-- **Parked notes:** the release workflow cannot be tested with a real release before v1.0.0; the dry-run mode is its test.
+- **Parked notes:**
+  - The release workflow cannot be tested with a real release before v1.0.0; the dry-run mode is its test.
+  - **Platforms.** `MordWare.slnx` maps the App to x86 in every configuration (from the WinUI template), so a solution build produces an x86 app even on x64 and ARM64 PCs. Decide the shipped platforms (x64, ARM64) and the ReadyToRun setting here.
 
 ## [1] Foundation
 

@@ -1,56 +1,68 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The mordWare app: an UNPACKAGED WinUI 3 app (no MSIX, no package identity), with the .NET runtime
+    and the Windows App SDK runtime bundled (self-contained). Installed and updated per user by Velopack
+    (scripts/pack.ps1); DEV runs from the build output (scripts/run-dev.ps1). x64 only.
+    See docs/architecture.md, "Editions" and "Packing".
+  -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.22621.0</TargetPlatformMinVersion>
     <RootNamespace>MordWare.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Platforms>x86;x64;ARM64</Platforms>
-    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</RuntimeIdentifier>
-    <PublishProfile Condition="Exists('Properties\PublishProfiles\win-$(Platform).pubxml')">win-$(Platform).pubxml</PublishProfile>
+    <Platforms>x64</Platforms>
+    <Platform>x64</Platform>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
+    <IsPackable>false</IsPackable>
+
+    <!-- Unpackaged, everything bundled. -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <!-- Must stay true even unpackaged: without it, publish drops the app's own .pri (with the compiled
+         XAML) and the installed app crashes on its first window. -->
     <EnableMsixTooling>true</EnableMsixTooling>
+    <!-- Off in every configuration: the framework files are already precompiled, and our own assemblies
+         are small. Keeps package sizes and update deltas small. -->
+    <PublishReadyToRun>false</PublishReadyToRun>
+
+    <!-- Velopack's install hooks must run before any UI: Program.Main replaces the XAML-generated Main. -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+
+    <!-- Overridden by scripts/pack.ps1 (-p:Version=...) with the release, dry-run or check version. -->
+    <Version>0.0.0-dev</Version>
   </PropertyGroup>
 
+  <!--
+    Edition fixed by the build, never at run time (guardrail 7): only Release is PROD, every other
+    configuration is DEV. The same condition sets the compile constant read by Hosting/AppEdition, the
+    assembly metadata checked by the architecture tests, and the exe icon.
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DefineConstants>$(DefineConstants);MORDWARE_PROD</DefineConstants>
+    <MordWareEdition>PROD</MordWareEdition>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' != 'Release'">
+    <MordWareEdition>DEV</MordWareEdition>
+    <ApplicationIcon>Assets\Dev\AppIcon.ico</ApplicationIcon>
+  </PropertyGroup>
   <ItemGroup>
-    <!-- PROD (Assets\) and DEV (Assets\Dev\) logo sets: placeholders until a real brand asset exists. -->
-    <Content Include="Assets\**\*.png" />
-    <Content Include="Assets\**\*.ico" />
+    <AssemblyMetadata Include="MordWare.Edition" Value="$(MordWareEdition)" />
   </ItemGroup>
 
-  <!--
-    Edition selection (design D4): every non-Release build packages the DEV identity (MordWare.Dev);
-    only Release packages the PROD identity (MordWare). A debug run can therefore never be PROD.
-  -->
   <ItemGroup>
-    <AppxManifest Remove="@(AppxManifest)" />
-    <None Remove="Package.Dev.appxmanifest" />
-    <AppxManifest Include="Package.appxmanifest" Condition="'$(Configuration)' == 'Release'" />
-    <AppxManifest Include="Package.Dev.appxmanifest" Condition="'$(Configuration)' != 'Release'" />
+    <!-- Window and title-bar icons of both editions (PROD in Assets\, DEV in Assets\Dev\). -->
+    <Content Include="Assets\**\*.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />
   </ItemGroup>
 
-  <!--
-    Defining the "Msix" ProjectCapability here allows the Single-project MSIX Packaging
-    Tools extension to be activated for this project even if the Windows App SDK Nuget
-    package has not yet been restored.
-  -->
-  <ItemGroup Condition="'$(DisableMsixProjectCapabilityAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
-    <ProjectCapability Include="Msix"/>
-  </ItemGroup>
-
-  <!--
-    Microsoft.Windows.SDK.BuildTools.WinApp adds first-class support for
-    `dotnet run` on packaged WinUI apps: it hooks the .NET CLI Run target to
-    register a debug identity via the winapp CLI and launch the app with
-    package identity (AUMID).
-    Set <EnableWinAppRunSupport>false</EnableWinAppRunSupport> in a
-    <PropertyGroup> above to opt out.
-  -->
   <ItemGroup>
     <ProjectReference Include="..\MordWare.Core\MordWare.Core.csproj" />
     <ProjectReference Include="..\MordWare.Persistence\MordWare.Persistence.csproj" />
@@ -61,22 +73,11 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" />
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools.WinApp" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.Base" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.Foundation" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.DWrite" />
+    <PackageReference Include="Velopack" />
   </ItemGroup>
-
-  <!--
-    Defining the "HasPackageAndPublishMenuAddedByProject" property here allows the Solution
-    Explorer "Package and Publish" context menu entry to be enabled for this project even if
-    the Windows App SDK Nuget package has not yet been restored.
-  -->
-  <PropertyGroup Condition="'$(DisableHasPackageAndPublishMenuAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
-    <HasPackageAndPublishMenu>true</HasPackageAndPublishMenu>
-  </PropertyGroup>
-
-  <!-- Publish Properties -->
-  <PropertyGroup>
-    <PublishReadyToRun Condition="'$(Configuration)' == 'Debug'">False</PublishReadyToRun>
-    <PublishReadyToRun Condition="'$(Configuration)' != 'Debug'">True</PublishReadyToRun>
-  </PropertyGroup>
 </Project>

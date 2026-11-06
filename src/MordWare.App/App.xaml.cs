@@ -26,7 +26,6 @@ public partial class App : Application
     /// <param name="args">Details about the launch request and process.</param>
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        ApplyAppLanguage(AppLanguages.Default);
         Host = AppHost.Create();
         _window = new MainWindow();
         _window.Activate();
@@ -34,13 +33,16 @@ public partial class App : Application
 
     /// <summary>
     /// Makes the app's selected language, never the OS, drive resources and formatting (guardrail 3).
-    /// Set on every start: Windows persists the override per package, so a stale value must never win.
+    /// Set on every start, so a stale persisted override never wins. Uses the Windows App SDK's
+    /// override: the Windows one needs package identity, which the unpackaged app does not have.
+    /// Called by <see cref="Program.Main"/> before the XAML application starts: set any later, it no longer
+    /// changes the language resources load in (measured in the unpackaged app).
     /// The foundation change replaces the hard-coded default with the user's language setting.
     /// </summary>
-    private static void ApplyAppLanguage(string languageTag)
+    internal static void ApplyAppLanguage(string languageTag)
     {
         var culture = AppLanguages.Culture(languageTag);
-        Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = culture.Name;
+        Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = culture.Name;
         CultureInfo.DefaultThreadCurrentCulture = culture;
         CultureInfo.DefaultThreadCurrentUICulture = culture;
         CultureInfo.CurrentCulture = culture;

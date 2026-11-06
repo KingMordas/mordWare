@@ -33,7 +33,12 @@ Run through it before every commit (the git hooks automate most of it) and in fu
    - Screenshots come only from the DEV edition with synthetic data.
    - Check every pixel: window titles, paths, notifications and the taskbar can leak details.
 8. **Tools.** The checks below are green. Hooks are never bypassed and `core.hooksPath` is never changed.
-9. **Going public, or a first push.**
+9. **Packages.** Anything packed for distribution (an installer, a release) is scanned before it leaves the PC or the workflow:
+   - `scripts/pack.ps1` runs `check-public-safety.ps1 -Package` on its output, and stops on any finding. The release workflow publishes only a package that passed.
+   - The binaries are deterministic and path-free (`PathMap`, no PDBs), so the app's own files hold no local path.
+   - Our own files must be clean; a third-party file passes only if it is byte-identical to its upstream package, and Velopack's per-app binaries only if they add nothing to their vendor binaries.
+   - Never publish a package by hand, and never publish a DEV package.
+10. **Going public, or a first push.**
    - The full-history scan passes (`check-public-safety.ps1 -History` and `-All`, with the private deny list).
    - This checklist is reviewed item by item.
    - The owner approves explicitly.
@@ -43,7 +48,8 @@ Run through it before every commit (the git hooks automate most of it) and in fu
 
 | Layer | What it does |
 |---|---|
-| `scripts/check-public-safety.ps1` | The check itself: identity, forbidden file types, user-folder paths, package-family hashes, e-mail addresses, secrets (gitleaks) and the private deny list. Modes: `-Staged`, `-MessageFile <path>`, `-All`, `-History`, `-SelfTest`. |
+| `scripts/check-public-safety.ps1` | The check itself: identity, forbidden file types, user-folder paths, package-family hashes, e-mail addresses, secrets (gitleaks) and the private deny list. Modes: `-Staged`, `-MessageFile <path>`, `-All`, `-History`, `-Package <folder>`, `-SelfTest`. |
+| `scripts/pack.ps1` | Packs an installer, then runs `-Package` on it; the release workflow publishes only after it passes. Try it locally: `.\scripts\pack.ps1 -Edition Dev -Version 0.0.1` (PowerShell 7). |
 | `.githooks/pre-commit`, `.githooks/commit-msg` | Run the check on every local commit (staged content, then the message). |
 | `.public-safety.local.txt` | Your private deny list, gitignored. |
 | CI job `public-safety` | `-History` (every commit's identity, and gitleaks over the full history), then `-All` and `-SelfTest`, on every push and pull request. |

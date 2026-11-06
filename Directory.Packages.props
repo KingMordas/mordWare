@@ -1,15 +1,29 @@
 <Project>
   <!-- Central package management: one version per dependency for the whole solution.
-       Every dependency must be free and OSS-licensed (CLAUDE.md guardrail 1). -->
+       Every dependency must be free and OSS-licensed (CLAUDE.md guardrail 1). The single named
+       exception is the Microsoft platform runtime the app cannot run without (the Windows App SDK
+       components below and the Windows SDK projection), covered by LICENSE-EXCEPTION.txt and listed
+       with its terms in THIRD-PARTY-NOTICES.txt. -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <!-- App (MIT) -->
-    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.6.5" />
+    <!-- App: Windows App SDK components (Microsoft Software License Terms, redistributed; the guardrail 1
+         exception). Only the components the app needs, never the Microsoft.WindowsAppSDK metapackage,
+         which adds ML, AI, Search and Widgets. All at the same version. -->
+    <PackageVersion Include="Microsoft.WindowsAppSDK.Base" Version="2.6.5" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.Foundation" Version="2.6.5" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.6.5" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.WinUI" Version="2.6.5" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.DWrite" Version="2.6.5" />
+    <!-- App: Windows SDK build tools (Microsoft Windows SDK license). Build time only, nothing of it is
+         redistributed. -->
     <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2957" />
-    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools.WinApp" Version="0.7.1" />
+    <!-- App: MVVM toolkit (MIT). -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <!-- App: Velopack installer and update hooks (MIT). Its vpk CLI (MIT) is pinned at the same version
+         in .config/dotnet-tools.json. -->
+    <PackageVersion Include="Velopack" Version="1.2.161" />
     <!-- Tests: xUnit v3 on Microsoft.Testing.Platform (Apache-2.0), ArchUnitNET (Apache-2.0) -->
     <PackageVersion Include="xunit.v3" Version="4.0.2" />
     <PackageVersion Include="TngTech.ArchUnitNET" Version="0.13.5" />

@@ -16,7 +16,9 @@
       private-word  a line of the gitignored deny list .public-safety.local.txt
       gitleaks      any secret gitleaks detects
 
-    Works in Windows PowerShell 5.1 and PowerShell 7+. Requires git and gitleaks on PATH.
+    -Package scans a packed release instead of the repository (see below).
+
+    Works in Windows PowerShell 5.1 and PowerShell 7+. Requires git and gitleaks on PATH (not for -Package).
     Exit codes: 0 = clean, 1 = findings, 2 = setup error.
 
 .PARAMETER Staged
@@ -31,12 +33,26 @@
 .PARAMETER History
     Check the author and committer identity of every commit, and run gitleaks over the full history.
 
+.PARAMETER Package
+    Scan packed output before it is published (scripts/pack.ps1 runs it): one or more folders, such as
+    the Velopack output and the publish folder. Every .nupkg is expanded and scanned too, and each
+    Setup.exe must embed its full package byte for byte.
+      Own files (MordWare.*, Assets, the legal texts, package metadata, the Setup.exe stub) must pass
+      the user-path, this-user (this PC's profile path, user or computer name), package-hash, email,
+      private-key and private-word rules, read as ASCII and as UTF-16 text.
+      Every other file is third-party and passes only if it is byte-identical (SHA-256) to a file of
+      its upstream package in the NuGet global packages folder or the .NET packs folder.
+    The accepted third-party files are reported per upstream package.
+
 .PARAMETER SelfTest
     Build a throwaway repository in a temp folder and prove that every rule refuses its sample
-    and that a clean sample passes.
+    and that a clean sample passes; then the same for -Package on a throwaway package folder.
 
 .EXAMPLE
     .\scripts\check-public-safety.ps1 -All
+
+.EXAMPLE
+    .\scripts\check-public-safety.ps1 -Package artifacts\pack\Prod
 #>
 [CmdletBinding(DefaultParameterSetName = 'Staged')]
 param(
@@ -44,6 +60,7 @@ param(
     [Parameter(ParameterSetName = 'Message', Mandatory = $true)][string]$MessageFile,
     [Parameter(ParameterSetName = 'All', Mandatory = $true)][switch]$All,
     [Parameter(ParameterSetName = 'History', Mandatory = $true)][switch]$History,
+    [Parameter(ParameterSetName = 'Package', Mandatory = $true)][string[]]$Package,
     [Parameter(ParameterSetName = 'SelfTest', Mandatory = $true)][switch]$SelfTest
 )
 
@@ -87,8 +104,9 @@ function Invoke-Git {
 }
 
 function New-Finding {
-    param([string]$Rule, [string]$File, [int]$Line, [string]$Detail)
-    [pscustomobject]@{ Rule = $Rule; File = $File; Line = $Line; Detail = $Detail }
+    # Raw is the matched text, used only to compare findings (-Package); it is never printed.
+    param([string]$Rule, [string]$File, [int]$Line, [string]$Detail, [string]$Raw = '')
+    [pscustomobject]@{ Rule = $Rule; File = $File; Line = $Line; Detail = $Detail; Raw = $Raw }
 }
 
 function Get-DenyWords {
@@ -114,13 +132,13 @@ function Test-Line {
     # Returns the findings for one line of text.
     param([string]$File, [int]$LineNo, [string]$Text, [string[]]$DenyWords)
     $found = @()
-    if ($Text -match $UserPathRegex) {
-        $found += New-Finding 'user-path' $File $LineNo ('absolute user-folder path ' + (Hide-Value $Matches[0]))
+    foreach ($m in [regex]::Matches($Text, $UserPathRegex)) {
+        $found += New-Finding 'user-path' $File $LineNo ('absolute user-folder path ' + (Hide-Value $m.Value)) $m.Value
     }
     foreach ($m in [regex]::Matches($Text, $PackageHashRegex)) {
         $h = $m.Groups[1].Value
         if ($h -match '\d' -and $h -match '[a-z]') {
-            $found += New-Finding 'package-hash' $File $LineNo ('package-family hash ' + (Hide-Value $m.Value))
+            $found += New-Finding 'package-hash' $File $LineNo ('package-family hash ' + (Hide-Value $m.Value)) $m.Value
         }
     }
     foreach ($m in [regex]::Matches($Text, $EmailRegex)) {
@@ -128,10 +146,10 @@ function Test-Line {
         $domain = $addr.Substring($addr.IndexOf('@') + 1)
         $ok = ($AllowedEmails -contains $addr)
         foreach ($d in $AllowedEmailDomains) { if ($domain -eq $d -or $domain.EndsWith('.' + $d)) { $ok = $true } }
-        if (-not $ok) { $found += New-Finding 'email' $File $LineNo ('e-mail address ' + (Hide-Value $m.Value)) }
+        if (-not $ok) { $found += New-Finding 'email' $File $LineNo ('e-mail address ' + (Hide-Value $m.Value)) $addr }
     }
     if ($Text -match $PrivateKeyRegex) {
-        $found += New-Finding 'private-key' $File $LineNo 'PEM private-key header'
+        $found += New-Finding 'private-key' $File $LineNo 'PEM private-key header' 'private-key'
     }
     for ($i = 0; $i -lt $DenyWords.Count; $i++) {
         if ($Text.IndexOf($DenyWords[$i], [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
@@ -292,6 +310,238 @@ function Invoke-HistoryCheck {
     return $found
 }
 
+# --- -Package: the packed release -----------------------------------------------------------------
+
+# Files of our own, by path inside the scanned folder or package: they must be clean.
+#   "!" separates a .nupkg from a path inside it. setup.ico is the edition icon vpk adds to the package.
+$OwnPackageFile = '(?i)(^|[\\/!])(MordWare\.[^\\/]*|LICENSE|LICENSE-EXCEPTION\.txt|THIRD-PARTY-NOTICES\.txt|[^\\/]*\.nuspec|sq\.version|\[Content_Types\]\.xml|[^\\/]*\.psmdcp|[^\\/]*\.rels|RELEASES[^\\/]*|releases\.[^\\/]*\.json|assets\.[^\\/]*\.json|setup\.ico)$|(^|[\\/!])Assets[\\/]'
+
+function Get-PackageTexts {
+    # Strings in any file: as Latin-1 (ASCII) and as UTF-16LE at both byte offsets.
+    param([byte[]]$Bytes)
+    $latin1 = [System.Text.Encoding]::GetEncoding(28591).GetString($Bytes)
+    $u0 = [System.Text.Encoding]::Unicode.GetString($Bytes)
+    $u1 = if ($Bytes.Length -gt 1) { [System.Text.Encoding]::Unicode.GetString($Bytes, 1, $Bytes.Length - 1) } else { '' }
+    return @($latin1, $u0, $u1)
+}
+
+function Test-OwnPackageBytes {
+    # The findings for one own file; every finding blocks.
+    param([string]$Name, [byte[]]$Bytes, [string[]]$DenyWords)
+    $found = @()
+    $seen = @{}
+    $thisUser = '(?i)' + [regex]::Escape($env:USERPROFILE) + '|\b' + [regex]::Escape($env:USERNAME) + '\b|\b' + [regex]::Escape($env:COMPUTERNAME) + '\b'
+    foreach ($text in Get-PackageTexts $Bytes) {
+        foreach ($m in [regex]::Matches($text, $thisUser)) {
+            if (-not $seen.ContainsKey('this-user')) {
+                $seen['this-user'] = 1
+                $found += New-Finding 'this-user' $Name 0 ("this PC's user or computer name " + (Hide-Value $m.Value))
+            }
+        }
+        # Printable runs only (like `strings`): a binary's neighboring bytes, such as a string's length
+        # prefix, would otherwise glue onto the text and hide it from the word-boundary rules.
+        foreach ($l in ($text -split '[\x00-\x1F\x7F]+|[^\x00-\xFF]+')) {
+            if ($l.Length -lt 4) { continue }
+            foreach ($f in @(Test-Line $Name 0 $l $DenyWords)) {
+                $k = "$($f.Rule)|$($f.Raw)|$($f.Detail)"
+                if (-not $seen.ContainsKey($k)) { $seen[$k] = 1; $found += $f }
+            }
+        }
+    }
+    return $found
+}
+
+function Get-UpstreamRoots {
+    $roots = @()
+    $roots += if ($env:NUGET_PACKAGES) { $env:NUGET_PACKAGES } else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.nuget\packages' }
+    $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+    if ($dotnet) { $roots += Join-Path (Split-Path -Parent $dotnet.Source) 'packs' }
+    return @($roots | Where-Object { Test-Path -LiteralPath $_ })
+}
+
+function Get-FileSha256 {
+    param([string]$Path)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $s = [System.IO.File]::OpenRead($Path)
+        try { return [BitConverter]::ToString($sha.ComputeHash($s)).Replace('-', '') } finally { $s.Dispose() }
+    }
+    finally { $sha.Dispose() }
+}
+
+function Find-Bytes {
+    # Index of $Needle in $Haystack, or -1 (Windows PowerShell 5.1 has no span search).
+    param([byte[]]$Haystack, [byte[]]$Needle)
+    if (-not ('MordWareSafetyBytes' -as [type])) {
+        Add-Type -TypeDefinition 'public static class MordWareSafetyBytes { public static int IndexOf(byte[] h, byte[] n) { if (n.Length == 0) return 0; for (int i = 0; i <= h.Length - n.Length; i++) { if (h[i] != n[0]) continue; int j = 1; while (j < n.Length && h[i + j] == n[j]) j++; if (j == n.Length) return i; } return -1; } }'
+    }
+    return [MordWareSafetyBytes]::IndexOf($Haystack, $Needle)
+}
+
+function Get-VelopackVendorRoot {
+    # The vendor folder of the vpk tool pinned in .config/dotnet-tools.json, in the NuGet packages folder.
+    param([string]$RepoRoot, [string[]]$UpstreamRoots)
+    $manifest = Join-Path $RepoRoot '.config\dotnet-tools.json'
+    if (-not (Test-Path -LiteralPath $manifest)) { return $null }
+    $text = [System.IO.File]::ReadAllText($manifest)
+    if ($text -notmatch '"vpk"\s*:\s*\{\s*"version"\s*:\s*"([^"]+)"') { return $null }
+    foreach ($root in $UpstreamRoots) {
+        $vendor = Join-Path $root "vpk\$($Matches[1])\vendor"
+        if (Test-Path -LiteralPath $vendor) { return $vendor }
+    }
+    return $null
+}
+
+# Velopack's own binaries that vpk derives per app, so they can never be byte-identical to upstream:
+# the Setup.exe stub (installer manifest), the shortcut stub (our exe's icon and version resources) and
+# Update.exe (renamed Squirrel.exe, icon set). Each is compared with its vendor binaries instead.
+$VelopackDerived = @(
+    @{ Pattern = '(?i)Setup\.exe \(stub\)$'; Vendor = 'setup*.exe' },
+    @{ Pattern = '(?i)_ExecutionStub\.exe$'; Vendor = 'stub*.exe' },
+    @{ Pattern = '(?i)(^|[\\/!])Squirrel\.exe$'; Vendor = 'update*.exe' }
+)
+
+function Test-VelopackDerivedBytes {
+    # A Velopack-derived binary passes only if it adds no rule hit to its vendor binaries: every hit
+    # must also occur, with the same text, in one of them. A this-PC or private-word hit always blocks.
+    param([string]$Name, [byte[]]$Bytes, [string]$VendorFilter, [string]$VendorRoot, [string[]]$DenyWords, [hashtable]$VendorCache)
+    if (-not $VendorRoot) {
+        return @(New-Finding 'package' $Name 0 'the pinned vpk vendor folder was not found: run dotnet tool restore')
+    }
+    $vendorFiles = @(Get-ChildItem -LiteralPath $VendorRoot -Filter $VendorFilter -File)
+    if (-not $vendorFiles) {
+        return @(New-Finding 'package' $Name 0 "no vendor binary $VendorFilter in the pinned vpk package")
+    }
+    $known = New-Object 'System.Collections.Generic.HashSet[string]'
+    foreach ($v in $vendorFiles) {
+        if (-not $VendorCache.ContainsKey($v.FullName)) {
+            $VendorCache[$v.FullName] = @(Test-OwnPackageBytes $v.Name ([System.IO.File]::ReadAllBytes($v.FullName)) @())
+        }
+        foreach ($h in $VendorCache[$v.FullName]) { [void]$known.Add("$($h.Rule)|$($h.Raw)") }
+    }
+    return @(Test-OwnPackageBytes $Name $Bytes $DenyWords | Where-Object {
+            $_.Rule -in 'this-user', 'private-word' -or -not $known.Contains("$($_.Rule)|$($_.Raw)")
+        })
+}
+
+function Invoke-PackageCheck {
+    param([string[]]$Folders, [string[]]$UpstreamRoots, [string[]]$DenyWords, [string]$VendorRoot)
+    $vendorCache = @{}
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $found = @()
+    $work = Join-Path ([System.IO.Path]::GetTempPath()) ('mordware-package-scan-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $work | Out-Null
+    try {
+        # 1. Every file to scan, named by its path inside the scanned folder; packages are expanded.
+        $files = @()
+        foreach ($folder in $Folders) {
+            $base = (Resolve-Path -LiteralPath $folder).Path.TrimEnd([char]92)
+            foreach ($f in Get-ChildItem -LiteralPath $base -Recurse -File) {
+                $rel = $f.FullName.Substring($base.Length + 1)
+                if ($f.Extension -ieq '.zip') {
+                    $found += New-Finding 'file-type' $rel 0 'a zip archive (no portable zip is shipped)'
+                    continue
+                }
+                if ($f.Extension -ieq '.nupkg') {
+                    $dest = Join-Path $work ([guid]::NewGuid().ToString('N'))
+                    [System.IO.Compression.ZipFile]::ExtractToDirectory($f.FullName, $dest)
+                    foreach ($inner in Get-ChildItem -LiteralPath $dest -Recurse -File) {
+                        $files += [pscustomobject]@{ Name = "$rel!$($inner.FullName.Substring($dest.Length + 1))"; Full = $inner.FullName }
+                    }
+                    continue
+                }
+                if ($f.Name -like '*Setup.exe') {
+                    # Setup.exe is a stub with the full package appended: the package is scanned on its
+                    # own, the stub before it against Velopack's vendor setup binaries.
+                    # The folder may keep earlier versions: the newest full package that it embeds counts.
+                    $bytes = [System.IO.File]::ReadAllBytes($f.FullName)
+                    $at = -1
+                    foreach ($nupkg in @(Get-ChildItem -LiteralPath $f.DirectoryName -Filter '*-full.nupkg' -File | Sort-Object LastWriteTimeUtc -Descending)) {
+                        if ($nupkg.Length -ge $bytes.Length) { continue }
+                        $at = Find-Bytes $bytes ([System.IO.File]::ReadAllBytes($nupkg.FullName))
+                        if ($at -ge 0) { break }
+                    }
+                    if ($at -lt 0) {
+                        $found += New-Finding 'package' $rel 0 'Setup.exe does not embed the full package next to it'
+                    }
+                    else {
+                        $stub = New-Object byte[] $at
+                        [Array]::Copy($bytes, $stub, $at)
+                        $found += @(Test-VelopackDerivedBytes "$rel (stub)" $stub 'setup*.exe' $VendorRoot $DenyWords $vendorCache)
+                    }
+                    continue
+                }
+                $files += [pscustomobject]@{ Name = $rel; Full = $f.FullName }
+            }
+        }
+
+        # 2. Own files must be clean.
+        # third-party-notices\ holds byte-identical copies of upstream notices files, never our own.
+        $upstreamCopy = '(?i)(^|[\\/!])third-party-notices[\\/]'
+        $own = @($files | Where-Object { $_.Name -match $OwnPackageFile -and $_.Name -notmatch $upstreamCopy })
+        foreach ($f in $own) {
+            $found += @(Test-OwnPackageBytes $f.Name ([System.IO.File]::ReadAllBytes($f.Full)) $DenyWords)
+        }
+
+        # 3. Third-party files must be byte-identical to a file of their upstream package.
+        $third = @($files | Where-Object { $_.Name -notmatch $OwnPackageFile -or $_.Name -match $upstreamCopy })
+        $leaves = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+        foreach ($f in $third) { [void]$leaves.Add([System.IO.Path]::GetFileName($f.Full)) }
+        $candidates = @{}
+        foreach ($root in $UpstreamRoots) {
+            foreach ($path in [System.IO.Directory]::EnumerateFiles($root, '*', [System.IO.SearchOption]::AllDirectories)) {
+                $leaf = [System.IO.Path]::GetFileName($path)
+                if (-not $leaves.Contains($leaf)) { continue }
+                if (-not $candidates.ContainsKey($leaf)) { $candidates[$leaf] = New-Object System.Collections.Generic.List[string] }
+                $candidates[$leaf].Add($path)
+            }
+        }
+        $hashCache = @{}
+        $accepted = @{}
+        foreach ($f in $third) {
+            $leaf = [System.IO.Path]::GetFileName($f.Full)
+            $hash = Get-FileSha256 $f.Full
+            $match = $null
+            if ($candidates.ContainsKey($leaf)) {
+                foreach ($c in $candidates[$leaf]) {
+                    if (-not $hashCache.ContainsKey($c)) { $hashCache[$c] = Get-FileSha256 $c }
+                    if ($hashCache[$c] -eq $hash) { $match = $c; break }
+                }
+            }
+            if (-not $match) {
+                $derived = @($VelopackDerived | Where-Object { $f.Name -match $_.Pattern } | Select-Object -First 1)
+                if ($derived) {
+                    $hits = @(Test-VelopackDerivedBytes $f.Name ([System.IO.File]::ReadAllBytes($f.Full)) $derived[0].Vendor $VendorRoot $DenyWords $vendorCache)
+                    if ($hits.Count -eq 0) {
+                        $package = 'vpk vendor (derived: adds no rule hit)'
+                        if (-not $accepted.ContainsKey($package)) { $accepted[$package] = 0 }
+                        $accepted[$package]++
+                    }
+                    $found += $hits
+                    continue
+                }
+                $found += New-Finding 'third-party' $f.Name 0 'not byte-identical to any file of an upstream package'
+                continue
+            }
+            $root = @($UpstreamRoots | Where-Object { $match.StartsWith($_, [StringComparison]::OrdinalIgnoreCase) })[0]
+            $parts = $match.Substring($root.Length).TrimStart([char]92, '/').Split([char[]]@([char]92, '/'))
+            $package = if ($parts.Count -ge 2) { "$($parts[0])/$($parts[1])" } else { $parts[0] }
+            if (-not $accepted.ContainsKey($package)) { $accepted[$package] = 0 }
+            $accepted[$package]++
+        }
+
+        Write-Host "public-safety: package scan: $($files.Count) files, $($own.Count) own, $($third.Count) third-party."
+        if ($accepted.Count -gt 0) {
+            Write-Host 'public-safety: third-party files accepted as identical to upstream:'
+            foreach ($k in ($accepted.Keys | Sort-Object)) { Write-Host ('  {0,5}  {1}' -f $accepted[$k], $k) }
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
+    }
+    return $found
+}
+
 function Write-Findings {
     param([object[]]$Findings)
     foreach ($f in $Findings) {
@@ -373,6 +623,54 @@ function Invoke-SelfTest {
         $r = @(Invoke-StagedCheck $tmp 6>$null)
         if ($r.Count -eq 0) { Write-Host '  ok   clean sample passes' -ForegroundColor Green }
         else { $failures++; Write-Host '  FAIL clean sample was refused:' -ForegroundColor Red; Write-Findings $r }
+
+        # -Package: a clean own file and an upstream-identical third-party file pass; a planted own file
+        # with a user path fails; a third-party file that differs from upstream fails.
+        $pkgDir = Join-Path $tmp 'package'
+        $upRoot = Join-Path $tmp 'upstream'
+        $upDir = Join-Path $upRoot 'some.package\1.0.0\lib'
+        New-Item -ItemType Directory -Path $pkgDir, $upDir | Out-Null
+        $thirdBytes = [System.Text.Encoding]::ASCII.GetBytes('third-party bytes, author ' + 'dev' + '@' + 'contoso.net')
+        [System.IO.File]::WriteAllBytes((Join-Path $upDir 'Upstream.Lib.dll'), $thirdBytes)
+        [System.IO.File]::WriteAllBytes((Join-Path $pkgDir 'Upstream.Lib.dll'), $thirdBytes)
+        [System.IO.File]::WriteAllText((Join-Path $pkgDir 'MordWare.Clean.txt'), 'data under %LOCALAPPDATA%' + $BS + 'mordWare Data')
+
+        $cases++
+        $r = @(Invoke-PackageCheck @($pkgDir) @($upRoot) @() 6>$null)
+        if ($r.Count -eq 0) { Write-Host '  ok   [package] clean own file and upstream-identical third-party file pass' -ForegroundColor Green }
+        else { $failures++; Write-Host '  FAIL [package] clean package was refused:' -ForegroundColor Red; Write-Findings $r }
+
+        $cases++
+        $planted = 'C:' + $BS + 'Users' + $BS + 'jdoe' + $BS + 'source' + $BS + 'MordWare.App.pdb'
+        [System.IO.File]::WriteAllBytes((Join-Path $pkgDir 'MordWare.Planted.dll'), [byte[]](0, 1, 2) + [System.Text.Encoding]::Unicode.GetBytes($planted) + [byte[]](0, 0))
+        $r = @(Invoke-PackageCheck @($pkgDir) @($upRoot) @() 6>$null)
+        if (@($r | Where-Object { $_.Rule -eq 'user-path' -and $_.File -eq 'MordWare.Planted.dll' }).Count -gt 0) { Write-Host '  ok   [package] own file with a user path refused' -ForegroundColor Green }
+        else { $failures++; Write-Host '  FAIL [package] own file with a user path was not refused' -ForegroundColor Red }
+        Remove-Item -LiteralPath (Join-Path $pkgDir 'MordWare.Planted.dll')
+
+        $cases++
+        [System.IO.File]::WriteAllBytes((Join-Path $pkgDir 'Upstream.Lib.dll'), $thirdBytes + [byte[]](1))
+        $r = @(Invoke-PackageCheck @($pkgDir) @($upRoot) @() 6>$null)
+        if (@($r | Where-Object { $_.Rule -eq 'third-party' -and $_.File -eq 'Upstream.Lib.dll' }).Count -gt 0) { Write-Host '  ok   [package] third-party file differing from upstream refused' -ForegroundColor Green }
+        else { $failures++; Write-Host '  FAIL [package] third-party file differing from upstream was not refused' -ForegroundColor Red }
+        [System.IO.File]::WriteAllBytes((Join-Path $pkgDir 'Upstream.Lib.dll'), $thirdBytes)
+
+        # A Velopack-derived binary passes when it adds no hit to its vendor binary, and fails otherwise.
+        $vendorDir = Join-Path $tmp 'vendor'
+        New-Item -ItemType Directory -Path $vendorDir | Out-Null
+        $vendorText = 'built at ' + 'C:' + $BS + 'Users' + $BS + 'runner' + $BS + 'work, contact ' + 'crate' + '@' + 'contoso.org'
+        [System.IO.File]::WriteAllText((Join-Path $vendorDir 'stub.exe'), $vendorText)
+        [System.IO.File]::WriteAllText((Join-Path $pkgDir 'mordWare_ExecutionStub.exe'), $vendorText + ' plus our icon')
+        $cases++
+        $r = @(Invoke-PackageCheck @($pkgDir) @($upRoot) @() $vendorDir 6>$null)
+        if ($r.Count -eq 0) { Write-Host '  ok   [package] Velopack-derived binary with only vendor hits passes' -ForegroundColor Green }
+        else { $failures++; Write-Host '  FAIL [package] Velopack-derived binary with only vendor hits was refused:' -ForegroundColor Red; Write-Findings $r }
+
+        $cases++
+        [System.IO.File]::WriteAllText((Join-Path $pkgDir 'mordWare_ExecutionStub.exe'), $vendorText + ' and ' + 'C:' + $BS + 'Users' + $BS + 'jdoe' + $BS + 'x')
+        $r = @(Invoke-PackageCheck @($pkgDir) @($upRoot) @() $vendorDir 6>$null)
+        if (@($r | Where-Object { $_.Rule -eq 'user-path' -and $_.File -eq 'mordWare_ExecutionStub.exe' }).Count -eq 1) { Write-Host '  ok   [package] Velopack-derived binary adding a hit refused' -ForegroundColor Green }
+        else { $failures++; Write-Host '  FAIL [package] Velopack-derived binary adding a hit was not refused exactly once' -ForegroundColor Red }
     }
     finally {
         if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
@@ -387,6 +685,19 @@ try {
         $null = Get-Gitleaks
         $failures = Invoke-SelfTest
         if ($failures -gt 0) { exit 1 } else { exit 0 }
+    }
+
+    if ($PSCmdlet.ParameterSetName -eq 'Package') {
+        $root = Split-Path -Parent $PSScriptRoot
+        $upstream = Get-UpstreamRoots
+        $findings = @(Invoke-PackageCheck $Package $upstream (Get-DenyWords $root) (Get-VelopackVendorRoot $root $upstream))
+        if ($findings.Count -gt 0) {
+            Write-Findings $findings
+            Write-Host "public-safety: $($findings.Count) finding(s) in the package. Nothing may be published (docs/public-safety.md)." -ForegroundColor Red
+            exit 1
+        }
+        Write-Host 'public-safety: package check passed.' -ForegroundColor Green
+        exit 0
     }
 
     $top = Invoke-Native 'git' @('rev-parse', '--show-toplevel')

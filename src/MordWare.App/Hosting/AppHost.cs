@@ -18,23 +18,10 @@ public sealed class AppHost
 
     public IAppPaths Paths { get; }
 
-    /// <summary>Resolves the edition from the running package's identity and creates its paths.</summary>
+    /// <summary>Takes the edition this build is (<see cref="AppEdition"/>) and creates its data paths.</summary>
     public static AppHost Create()
     {
-        var environment = AppEnvironmentResolver.FromPackageName(TryGetPackageName());
-        return new AppHost(environment, new PackagedAppPaths(environment));
-    }
-
-    private static string? TryGetPackageName()
-    {
-        try
-        {
-            return Windows.ApplicationModel.Package.Current.Id.Name;
-        }
-        catch (InvalidOperationException)
-        {
-            // No package identity (should not happen: mordWare always runs packaged). Resolves to DEV.
-            return null;
-        }
+        var edition = AppEdition.Profile;
+        return new AppHost(edition.Environment, new LocalAppDataPaths(edition));
     }
 }

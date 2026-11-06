@@ -16,8 +16,8 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
 | S2 | Spike: decimal storage on SQLite | done | `2026-11-04-spike-decimal-storage` (archived) |
 | S3 | Spike: MSIX storage and uninstall | done | `2026-11-04-spike-msix-storage` (archived) |
 | R | Open source and public repository | done | `2026-11-05-replan-open-source-delivery` (archived) |
-| S4 | Spike: unpackaged app, installer, updates from GitHub | done | `spike-unpackaged-installer` |
-| D | Delivery (unpackaged app, editions, release workflow) | todo | - |
+| S4 | Spike: unpackaged app, installer, updates from GitHub | done | `2026-11-05-spike-unpackaged-installer` (archived) |
+| D | Delivery (unpackaged app, editions, release workflow) | done | `2026-11-06-delivery-unpackaged` (archived) |
 | 1 | Foundation (persistence + shell + Home dashboard frame) | todo | - |
 | U | Update check at startup | todo | - |
 | 2 | morVehicles | todo | - |
@@ -174,7 +174,7 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
 
 ## [S4] Spike: unpackaged app, installer, updates from GitHub
 
-- **Status:** done (2026-11-05). Change `spike-unpackaged-installer`, archived as `openspec/changes/archive/2026-11-05-spike-unpackaged-installer/` (no specs: a spike changes no app behavior). Proof: `spikes/S4.Installer`, an unpackaged WinUI 3 probe app with Velopack (packIds `MordWare.Spike.S4` and `MordWare.Spike.S4.Dev`), its driver `run-checks.ps1` and its binary scanner `scan-package.ps1`, outside the solution; results per check in the change's task notes.
+- **Status:** done (2026-11-05). Change `spike-unpackaged-installer`, archived as `openspec/changes/archive/2026-11-05-spike-unpackaged-installer/` (no specs: a spike changes no app behavior). Proof: `spikes/S4.Installer` (deleted by [D] once adopted), an unpackaged WinUI 3 probe app with Velopack (packIds `MordWare.Spike.S4` and `MordWare.Spike.S4.Dev`), its driver `run-checks.ps1` and its binary scanner `scan-package.ps1`, outside the solution; results per check in the change's task notes.
 - **Conditions:** Windows build 26300, x64; .NET SDK 10.0.403, Windows App SDK 2.6.5, Velopack and `vpk` 1.2.161 (MIT). Per user, no admin rights, and no Windows setting changed (Smart App Control was off on the test PC and stayed untouched; Windows Sandbox is not enabled and was not used).
 - **Question:** how does an unpackaged WinUI 3 mordWare install, upgrade, update itself from GitHub Releases and uninstall, without signing, and where does each edition's data live?
 - **Decisions** (explore 2026-11-05, validated by the checks below):
@@ -191,7 +191,7 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
   | (c) DEV next to PROD | PASS. Two packIds, folders, entries, shortcuts and data roots; uninstalling DEV leaves PROD and its data intact. |
   | (d) Unpackaged runtime | PASS. The Windows App SDK `Microsoft.Windows.Globalization` language override drives MRT Core `.resw` resources (en-US / it-IT); the `Windows.Globalization` one the app uses today throws unpackaged. The edition follows the build constant. From the build output, update checks turn themselves off. |
   | (e) Folder picker | PASS. `FolderPicker(AppWindow.Id)` works unpackaged; the path, kept in a file in the data root, is remembered across a restart. |
-  | (f) Unsigned first run | Partly. The browser asked to keep or discard the download; the file had no Mark-of-the-Web, so SmartScreen did not run on the test PC. Documented instead: unsigned files show "Windows protected your PC" / "Run anyway", and **Smart App Control blocks unsigned executables with no per-app override** (see [D]). |
+  | (f) Unsigned first run | Partly. The browser asked to keep or discard the download; the file had no Mark-of-the-Web, so SmartScreen did not run on the test PC. Documented instead: unsigned files show "Windows protected your PC" / "Run anyway", and **Smart App Control blocks unsigned executables with no per-app override** (see [v1.0.0]). |
   | (g) Local-feed update | PASS. 0.1.0 -> 0.1.1 found, nothing applied until asked; then a 0.2 MB delta, `Update.exe apply` after the app exits, restart on 0.1.1, data intact. |
   | (h) GitHub update | PASS. Two temporary `s4-feed-*` pre-releases (owner-approved, deleted after about 20 minutes). Found and applied anonymously: one API request plus small files, user agent `Velopack/1.2.161`, no token, no user data. |
   | (i) Binary public safety | PASS. With a deterministic build, `PathMap` and no PDBs, our own files hold no local path or private word. `Setup.exe` embeds the full package byte for byte. Matches in Microsoft and Velopack binaries are upstream content (byte-identical to their packages). |
@@ -201,7 +201,7 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
 
 ## [D] Delivery
 
-- **Status:** todo (next, after [S4])
+- **Status:** done (2026-11-06). Change `delivery-unpackaged`, archived as `openspec/changes/archive/2026-11-06-delivery-unpackaged/`. Specs: `app-delivery` (new), `app-environments`, `development-workflow`, `public-repository`. **Pending:** the release dry run (task 8.4), deferred by the owner until after archive: push `main` with the owner's approval, start `release.yml` by hand (`workflow_dispatch`), check its artifact (PROD installer and full package only, notes with the license line and source link, scan report) and record the result here.
 - **Scope:**
   - **Unpackage the app:** remove the MSIX manifests and packaging; the app runs from its build output and from the installer.
   - **Editions without package identity.** The edition is fixed by the build (Release = PROD, every other configuration = DEV), with separate app ids, data folders, Start menu entries and icons. This modifies the `app-environments` spec.
@@ -210,29 +210,24 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
   - **`THIRD-PARTY-NOTICES`** shipped with the installer, for every redistributed dependency's license.
   - **GPL-3.0 source offer (section 6).** Every release offers its corresponding source: the GitHub Release links the tagged source archive, and the release notes say so. The installer ships the `LICENSE` text next to `THIRD-PARTY-NOTICES`.
 - **Parked notes:**
-  - The release workflow cannot be tested with a real release before v1.0.0; the dry-run mode is its test.
-  - **Platforms (decided in [S4]): x64 only.** No x86 and no ARM64 build; ARM64 PCs run the x64 app under emulation, and ARM64 can be added later as one more Velopack channel. `MordWare.slnx` maps the App to x86 in every configuration (from the WinUI template): fix it to x64. Decide ReadyToRun here, with the [S4] sizes.
-  - **Adopted from [S4]** (reference code in `spikes/S4.Installer`, which [D] deletes once adopted):
-    - **Project:** `WindowsPackageType=None`, `WindowsAppSDKSelfContained=true`, `SelfContained=true`, `RuntimeIdentifier=win-x64`. **Keep `EnableMsixTooling=true`** while removing the manifests: without it `dotnet publish` drops the app's own `.pri` (resources and compiled XAML) and the installed app crashes on its first window, although the build output works. Test the installed window, not only the build output.
-    - **Entry point:** define `DISABLE_XAML_GENERATED_MAIN` and add an own `[STAThread] Main` that calls `VelopackApp.Build().Run()` before anything else, then starts WinUI the way the generated `Main` does (`ComWrappersSupport.InitializeComWrappers`, then `Application.Start` with a `DispatcherQueueSynchronizationContext`).
-    - **Edition:** a build constant (defined only when `Configuration == Release`) replaces `AppEnvironmentResolver.FromPackageName`; `Package.Current` throws unpackaged.
-    - **Language:** `App.ApplyAppLanguage` must use `Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride` (Windows App SDK). The `Windows.Globalization` one throws `InvalidOperationException` without package identity.
-    - **Velopack names:** packIds `MordWare` (PROD) and `MordWare.Dev` (DEV, only if ever installed), titles "mordWare" and "mordWare (DEV)", the default channel `win`, and `--shortcuts StartMenuRoot` (vpk's default also adds a Desktop shortcut).
-    - **Install facts:** `Setup.exe --silent` does not start the app afterwards; a normal install does, once, and fires Velopack's first-run hook. A Setup over an existing install fails if it starts within about 2 s of the previous install or app run ("Failed to remove existing application directory"); it works a few seconds later. In-app updates are not affected.
-    - **Sizes** (Release, ReadyToRun off): `Setup.exe` 102 MB, full package 95 MB, **delta 0.2 MB**, about 400 MB on disk. The publish folder is 233 MB: .NET about 124 MB, Windows App SDK about 109 MB, of which the Windows ML runtime (`onnxruntime.dll`, `DirectML.dll`, about 40 MB) is unused. Try excluding it.
-    - **Binary public safety for releases:** build with `Deterministic`, `ContinuousIntegrationBuild`, `PathMap` and `DebugType=none`, then scan the packages before upload, the way `scan-package.ps1` does: ASCII and UTF-16 strings, own files strictly; third-party matches pass only when the file is byte-identical to its upstream package. Fold it into `scripts/check-public-safety.ps1` (for example a `-Package <path>` mode) and run it in the release workflow before publishing.
-    - **Release upload:** `vpk upload github` reads the token from `VPK_TOKEN` (never put it on the command line); `--targetCommitish` needs a full SHA or a branch name. It also uploads a `Portable.zip` (95 MB): decide whether to ship it.
-  - **Owner decision before v1.0.0: Smart App Control vs. no code signing.** Microsoft documents that Smart App Control (Windows 11) blocks unsigned executables unless they already have a positive reputation, and that "there is currently no way to bypass Smart App Control protection for individual apps"; it checks every executable, not only downloads. Every unsigned release starts again at zero reputation. So on PCs where it is on, an unsigned mordWare will most likely not run at all. Options to weigh: stay unsigned and document it; sign (for example with Artifact Signing, a paid service that needs an identity check, at odds with the free, no-paid-tiers stance of guardrail 1); or a Microsoft Store edition. [S4] does not decide it. Sources: https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation and https://support.microsoft.com/en-us/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions
-  - **First-install wording (draft for the README):**
-    - "mordWare is free and not code-signed, so your browser and Windows may warn you the first time. Download mordWare only from its GitHub Releases page."
-    - "Your browser may say the file is not commonly downloaded: choose Keep."
-    - "If Windows shows "Windows protected your PC", select More info, check that it is the mordWare installer you downloaded from GitHub, then select Run anyway."
-    - "If Windows says that Smart App Control blocked the app: Windows allows no exception for a single app, so mordWare cannot run on this PC while Smart App Control is on." (The final wording depends on the Smart App Control decision above.)
-    - Also say that the installer needs no administrator rights, that uninstalling keeps your data in `%LOCALAPPDATA%\mordWare Data` (and your backups), and how to remove that data completely.
+  - **Applied in change `delivery-unpackaged`** (2026-11-06), adopting the [S4] reference code and deleting `spikes/S4.Installer`:
+    - **Project:** unpackaged (`WindowsPackageType=None`), self-contained .NET and Windows App SDK, `win-x64` only (`MordWare.slnx` maps the App to x64), `EnableMsixTooling=true` kept, ReadyToRun off. `Program.Main` runs `VelopackApp.Build().Run()` first.
+    - **Language:** the Windows App SDK override must be set in `Program.Main`, before the XAML application starts. Set in `OnLaunched` (as the packaged app did), it no longer changed the resources' language: the it-IT window showed English.
+    - **Edition:** `MORDWARE_PROD` for Release only; `EditionProfile` in Core holds packIds, titles and data folder names; the `MordWare.Edition` assembly metadata is checked per configuration by the architecture tests.
+    - **Final Windows App SDK component set (2.6.5):** `Microsoft.WindowsAppSDK.Base`, `.Foundation`, `.InteractiveExperiences`, `.WinUI` and `.DWrite`. `.Runtime` is not needed for the self-contained build. WebView2 (BSD-3-Clause) comes transitively with WinUI. No `onnxruntime*`, `DirectML*` or `Microsoft.Windows.AI*` file ships; the publish folder dropped from 233 MB to 176 MB.
+    - **Packing:** `scripts/pack.ps1` with `--noPortable` (no portable zip is shipped) and `--delta None` (deltas come with [U]). `Setup.exe` about 82 MB, full package about 75 MB.
+    - **Package scan:** `check-public-safety.ps1 -Package`. vpk builds three Velopack binaries per app (the `Setup.exe` stub, the shortcut stub and `Squirrel.exe`), so they can never be byte-identical to upstream. Owner decision 2026-11-06: they pass only if every rule hit in them also occurs in their vendor binary of the pinned vpk package, with no this-PC or private-word hit.
+    - **Upstream notices:** the Windows App SDK and .NET third-party notices contain e-mail addresses, which the repository's public-safety rule refuses. Owner decision 2026-11-06: they are not committed; `pack.ps1` copies them byte for byte from their NuGet packages into the installer (`third-party-notices\`), and the committed `THIRD-PARTY-NOTICES.txt` lists every component with its full license terms.
+    - **Installer checks** (2026-11-06, Windows build 26300, x64, check-only DEV installer 0.0.1 and 0.0.2, no admin rights, no Windows setting changed): installed without elevation, with a Start menu entry "mordWare (DEV)" using the DEV icon, an installed-apps entry and no desktop shortcut; the installed window opened in en-US with the DEV marker; the installation folder held the license, the additional permission and all notices; no TCP or UDP endpoint was owned by the app during three minutes with its window open; 0.0.2 over 0.0.1 upgraded in place (one entry each, data marker unchanged); uninstalling removed the program files and both entries and kept the DEV data folder. The PROD folders were not created or touched.
+  - **The live publish path is not exercised before v1.0.0.** The dry run covers every step except `publish` (the `vpk upload github` call and the release notes).
+  - **Before installing PROD on any PC, `%LOCALAPPDATA%\MordWare\` must not hold anything else:** it is the installer's program folder (packId `MordWare`), and Velopack deletes it on uninstall and on a Setup over an existing install.
+  - **Platforms (decided in [S4]): x64 only.** No x86 and no ARM64 build; ARM64 PCs run the x64 app under emulation, and ARM64 can be added later as one more Velopack channel.
+  - **Install facts (from [S4]):** `Setup.exe --silent` does not start the app afterwards; a normal install does, once. A Setup over an existing install fails if it starts within about 2 s of the previous install or app run ("Failed to remove existing application directory"); it works a few seconds later. In-app updates are not affected.
+  - **Release upload (from [S4]):** `vpk upload github` reads the token from `VPK_TOKEN` (never on the command line); `--targetCommitish` needs a full SHA or a branch name.
 
 ## [1] Foundation
 
-- **Status:** todo (after [S4] and [D])
+- **Status:** todo (after [D])
 - **Scope:**
   - **Persistence:** EF Core + SQLite per module context in one file, WAL mode, encryption, recovery key, backup/restore, safe migrations with an automatic pre-migration backup.
   - **Shell:** navigation, light/dark theme, en-US/it-IT setting, settings page.
@@ -348,6 +343,10 @@ Status values: `todo`, `explored` (decided, ready to propose), `in progress` (a 
 
 - **Status:** todo
 - **Scope:** Vehicles, Houses and Finance complete and working. Push the tag `v1.0.0` on `main`; the release workflow from [D] publishes the installer on GitHub Releases. There are no releases before this one.
+- **Parked notes:**
+  - **Owner decision before v1.0.0: Smart App Control vs. no code signing** (moved here from [D]). Microsoft documents that Smart App Control (Windows 11) blocks unsigned executables unless they already have a positive reputation, and that "there is currently no way to bypass Smart App Control protection for individual apps"; it checks every executable, not only downloads. Every unsigned release starts again at zero reputation. So on PCs where it is on, an unsigned mordWare will most likely not run at all. Options to weigh: stay unsigned and document it; sign (for example with Artifact Signing, a paid service that needs an identity check, at odds with the free, no-paid-tiers stance of guardrail 1); or a Microsoft Store edition. The README's Smart App Control sentence is marked provisional until this is decided. Sources: https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation and https://support.microsoft.com/en-us/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions
+  - **Review the Microsoft license reading before the first release** (from [D]). mordWare redistributes the Windows App SDK components and the Windows SDK projection under Microsoft's license terms, with the GPL-3.0 section 7 additional permission in `LICENSE-EXCEPTION.txt`. Microsoft's distribution condition 3b.ii (end users agree to terms that protect Microsoft at least as much) is handled by shipping the full terms in `THIRD-PARTY-NOTICES.txt` together with a README statement. This is a good-faith reading, not legal advice; a commercial or Store edition would get proper advice first. The projection's terms are the Windows SDK license (https://aka.ms/WinSDKLicenseURL); confirm that it lists the projection as distributable code.
+  - **The release workflow's publish job** runs for the first time with the `v1.0.0` tag: watch it, and check the release page (installer, full package, notes with the license line and source link).
 
 ## [L] Later / unscheduled
 

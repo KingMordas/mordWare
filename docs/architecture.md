@@ -1,34 +1,39 @@
 # Architecture
 
-The solution layout, the module rules and how the architecture tests enforce them, the two editions (DEV/PROD) and how their data stays apart, localization, delivery, CI, the public-safety checks, and how to run the app. Read this before designing any change.
-
-> **Packaging is changing.** The sections on editions, data paths and running DEV describe today's code, which is packaged as MSIX. Roadmap item [D] makes mordWare an unpackaged app delivered by an installer (see [Delivery](#delivery-planned)); those sections are rewritten in that change.
+The solution layout, the module rules and how the architecture tests enforce them, the two editions (DEV/PROD) and how their data stays apart, localization, packing and releases, CI, the public-safety checks, and how to run the app. Read this before designing any change.
 
 ## Solution layout
 
 ```
 MordWare.slnx
 global.json                  pins the .NET 10 SDK; selects Microsoft.Testing.Platform for dotnet test
-Directory.Build.props        nullable, implicit usings, warnings as errors
+Directory.Build.props        nullable, implicit usings, warnings as errors; deterministic, path-free src/ builds
 Directory.Packages.props     central package management: one version per dependency
+.config/dotnet-tools.json    pins the vpk tool (Velopack's packer) for scripts/pack.ps1
+LICENSE                      GPL-3.0 (unmodified text)
+LICENSE-EXCEPTION.txt        the GPL-3.0 section 7 additional permission (Microsoft platform runtime)
+THIRD-PARTY-NOTICES.txt      every redistributed component with its license
 src/
   MordWare.Core              net10.0  shared contracts (editions, paths, languages, ...)
   MordWare.Persistence       net10.0  shared persistence infrastructure (empty until foundation)
   MordWare.Integrations      net10.0  external integrations (empty)
   MordWare.Vehicles          net10.0  the morVehicles module (skeleton)
-  MordWare.App               net10.0-windows10.0.26100.0, min 10.0.22621.0 (Windows 11), WinUI 3, packaged MSIX
+  MordWare.App               net10.0-windows10.0.26100.0, min 10.0.22621.0 (Windows 11), WinUI 3, unpackaged, x64
 tests/
   MordWare.Tests.Unit          net10.0  unit tests (xUnit v3)
-  MordWare.Tests.Architecture  net10.0  module-boundary rules (ArchUnitNET)
+  MordWare.Tests.Architecture  net10.0  module-boundary rules (ArchUnitNET), edition and notices checks
 spikes/                      throwaway proofs for roadmap spikes; outside the solution (see below)
   Directory.Packages.props   imports the root file and adds spike-only package versions
   S1.Encryption              net10.0  encryption spike (xUnit v3)
   S2.Decimals                net10.0  decimal-storage spike (xUnit v3)
   S3.Storage                 WinUI 3  MSIX storage spike: packaged probe app + run-checks.ps1 driver
 scripts/
-  run-dev.ps1                builds, deploys and launches the DEV edition
-  check-public-safety.ps1    the public-safety check (hooks, CI, manual)
+  run-dev.ps1                builds and launches the DEV edition from its build output
+  pack.ps1                   packs one edition into a Velopack installer, then scans it
+  release-prep.ps1           the release run's checks (tag, main, changelog) and its release notes
+  check-public-safety.ps1    the public-safety check (hooks, CI, manual, packages)
 .githooks/                   tracked git hooks: pre-commit and commit-msg run the public-safety check
+.github/workflows/           ci.yml (build, test, public safety) and release.yml (pack and publish)
 .claude/                     OpenSpec commands, and a Claude Code hook that blocks hook bypass and visibility changes
 ```
 
@@ -43,18 +48,14 @@ The libraries target plain `net10.0`, not a Windows TFM, so WinUI types are unav
   - Never named `MordWare.*`, so the architecture tests never load it.
   - Referenced by nothing in `src/` or `tests/`.
   - Independent of each other: a spike copies the small helpers it needs (encrypted connection, temp folder) instead of referencing another spike, so each can be deleted on its own.
-- **Package versions.** `spikes/Directory.Packages.props` imports the root `Directory.Packages.props` and adds the spikes' own versions. The app's central versions change only when an item adopts a package on purpose. Guardrail 1 still applies to every spike dependency.
+- **Package versions.** `spikes/Directory.Packages.props` imports the root `Directory.Packages.props` and adds the spikes' own versions. The app's central versions change only when an item adopts a package on purpose. Guardrail 1 still applies to every spike dependency. S3 keeps the packaged-app packages (the `Microsoft.WindowsAppSDK` metapackage and `Microsoft.Windows.SDK.BuildTools.WinApp`) as spike-only versions, since the app no longer uses them.
 - **Shape.** A spike is normally an xUnit v3 test project, so every success criterion is an assertion rather than printed output. Run it with `dotnet test --project spikes/<Spike>`.
   - **Exception: `S3.Storage`.** Package storage, write redirection and uninstall exist only for a process with package identity, which a test host lacks.
     - So S3 is a packaged WinUI 3 probe app under its own identity, `MordWare.Spike.S3`, never `MordWare` or `MordWare.Dev`. It is launched through the `s3probe.exe` alias.
     - Its driver `spikes/S3.Storage/run-checks.ps1` installs, resets and uninstalls it, and prints PASS or FAIL per check.
     - It runs on the owner's PC only (Developer Mode), never in CI. `run-checks.ps1 -CleanupOnly` removes the package and every spike folder.
-  - **Exception: `S4.Installer`.** Installing, updating and uninstalling an unpackaged app need a real installer and a real process, which a test host lacks.
-    - So S4 is an unpackaged WinUI 3 probe app with Velopack, packed by `vpk` (pinned in the spike's own `.config/dotnet-tools.json`) under its own packIds, `MordWare.Spike.S4` (Release, PROD-like) and `MordWare.Spike.S4.Dev` (Debug, DEV-like), never `MordWare` or `MordWare.Dev`.
-    - Its driver `spikes/S4.Installer/run-checks.ps1` packs, installs, upgrades, updates and uninstalls it per user, and prints PASS or FAIL per check. A name guard refuses any packId or folder that is not a spike name.
-    - It runs on the owner's PC only, without admin rights and without changing any Windows setting, never in CI. `run-checks.ps1 -CleanupOnly` removes every spike install, data root, feed and publish folder.
-- **Data.** Spike tests write only to their own temporary folders, deleted afterwards. They never use `IAppPaths` or either edition's LocalState. S3's probe writes only into its own package's storage and into `mordWare S3 spike` folders under Documents and `%LOCALAPPDATA%`, all deleted by its cleanup. S4's probe writes only into `mordWare S4 spike Data` and `mordWare S4 spike Data (DEV)` under `%LOCALAPPDATA%`, and its driver uses `mordWare S4 spike feed` and `mordWare S4 spike publish` under `%TEMP%`, all deleted by its cleanup.
-- **Lifetime.** A spike's outcome is recorded in `docs/roadmap.md`. Its code stays as a reference until the roadmap item that adopts it moves the code into `src/`, and that item deletes the spike folder.
+- **Data.** Spike tests write only to their own temporary folders, deleted afterwards. They never use `IAppPaths` or either edition's data folder. S3's probe writes only into its own package's storage and into `mordWare S3 spike` folders under Documents and `%LOCALAPPDATA%`, all deleted by its cleanup.
+- **Lifetime.** A spike's outcome is recorded in `docs/roadmap.md`. Its code stays as a reference until the roadmap item that adopts it moves the code into `src/`, and that item deletes the spike folder (as [D] did for [S4]).
 
 ## Modules
 
@@ -75,83 +76,108 @@ Dependency direction: `App -> modules -> Persistence/Integrations -> Core`, and 
 1. `MordWare.Core` depends on no other `MordWare.*` assembly.
 2. A module depends only on Core, Persistence and Integrations: never on the App, never on another module.
 3. Any `MordWare.<X>.Domain` namespace depends on neither `Microsoft.EntityFrameworkCore*` nor `Microsoft.UI*`/`Windows*`.
-4. Test assemblies never depend on `MordWare.App.Hosting.PackagedAppPaths` or `AppHost`, so tests can never resolve a real edition's data folder.
+4. Test assemblies never depend on `MordWare.App.Hosting.LocalAppDataPaths` or `AppHost`, so tests can never resolve a real edition's data folder.
 5. Persistence and Integrations depend on no module and not on the App.
+
+The same project also checks two delivery facts:
+- **Edition per configuration** (`EditionPerConfigurationTests`): the App built in the test run's configuration carries `[assembly: AssemblyMetadata("MordWare.Edition", ...)]` = `DEV` for every configuration except Release, which is `PROD`. It is read from the build output with `System.Reflection.Metadata`, never loaded. CI runs Release, a local `dotnet test` runs Debug.
+- **Third-party notices** (`ThirdPartyNoticesTests`): every App `PackageReference`, every known transitive redistributable (the .NET runtime pack, the Windows SDK projection, WebView2) and every package the App's restore resolves (`obj/project.assets.json`, build-time-only packages excepted) has a `Package: <id>` entry in `THIRD-PARTY-NOTICES.txt`. A new dependency cannot ship unlisted.
 
 How the tests are built and kept honest:
 - **Module list.** The modules live in `MordWareArchitecture.Modules`. Adding a module means adding its name there (definition of done).
-- **Loading.** The App and the unit-test project are build-order-only references (`ReferenceOutputAssembly="false"`), and their DLLs are read by path from the same-configuration build output: `bin\<configuration>\` or, when the solution builds the project for a platform (the App is mapped to x86), `bin\<platform>\<configuration>\`. The newest match wins and the AppX layout is never read. ArchUnitNET reads metadata only (by path, never `Assembly.LoadFile`), so WinUI never loads in the test process, and a Release App built for x86 with ReadyToRun is read by a 64-bit test process too.
+- **Loading.** The App and the unit-test project are build-order-only references (`ReferenceOutputAssembly="false"`), and their DLLs are read by path from the same-configuration build output: `bin\<configuration>\` or, when the project is built for a platform (the App is always x64), `bin\<platform>\<configuration>\`. The newest match wins. ArchUnitNET reads metadata only (by path, never `Assembly.LoadFile`), so WinUI never loads in the test process.
 - **Exact-name matching.** Rules select assemblies with `ResideInAssemblyMatching` and an exact-name regex. `ResideInAssembly(string)` only matches the *full* assembly name and would silently select nothing.
 - **A rule that selects nothing fails.** Every rule must match at least one type, except rule 5 while Persistence and Integrations are empty skeletons.
 
 ## Editions: DEV and PROD
 
-_Current until [D]: the mechanism below is the MSIX package identity. The rule (the build fixes the edition; the data never mixes) stays._
-
-The owner develops on the same PC that runs the real app, so the separation is structural:
+The owner develops on the same PC that runs the real app, so the separation is structural and fixed by the build:
 
 | | PROD | DEV |
 |---|---|---|
-| Package identity | `MordWare` | `MordWare.Dev` |
+| Built by | `Release` only | every other configuration (`Debug`, F5, tests) |
+| Compile constant | `MORDWARE_PROD` | none |
+| Assembly metadata `MordWare.Edition` | `PROD` | `DEV` |
 | Display name | mordWare | mordWare (DEV) / mordWare (SVILUPPO) |
-| Built by | `Release` only | every other configuration (`Debug`, F5, `dotnet run`) |
-| Manifest | `Package.appxmanifest` | `Package.Dev.appxmanifest` |
-| Logos | `Assets/` | `Assets/Dev/` (orange DEV band) |
+| Icons | `Assets/` | `Assets/Dev/` (orange DEV band) |
 | Window | no marker | orange DEV badge in the title bar |
-| Data | `%LOCALAPPDATA%\Packages\MordWare_<hash>\LocalState` | `%LOCALAPPDATA%\Packages\MordWare.Dev_<hash>\LocalState` |
+| Runs from | the installer only | its build output (`scripts/run-dev.ps1`); a local check-only installer for installer checks |
+| Installer packId and title | `MordWare`, "mordWare" | `MordWare.Dev`, "mordWare (DEV)" (never published) |
+| Program files (installed) | `%LOCALAPPDATA%\MordWare\` | `%LOCALAPPDATA%\MordWare.Dev\` |
+| Data | `%LOCALAPPDATA%\mordWare Data\` | `%LOCALAPPDATA%\mordWare Data (DEV)\` |
 
-- **The edition comes from the running package's identity name** (`AppEnvironmentResolver.FromPackageName`), never from a compile flag. Windows uses the same identity to separate each package's storage, so the DEV marker and the data folder can't disagree. Anything other than the exact PROD name, including no package identity at all, resolves to DEV.
-- **Data paths.** Code asks `IAppPaths` (`DataFolder`, `LogsFolder`). The installed app uses `PackagedAppPaths` (package LocalState). Tests use the `TempAppPaths` helper, which creates a unique temp folder and deletes it on dispose.
-- **What Windows does to package storage** (measured in [S3], `docs/roadmap.md`):
-  - **Uninstall and Settings > Apps > Reset delete LocalState.** Reset is refused on a development-mode registration, so DEV deployed by `run-dev.ps1` cannot be reset; use `run-dev.ps1 -Reset` (an uninstall) instead.
-  - **A redeploy or a package update keeps LocalState.** That includes `run-dev.ps1` re-registering DEV at the same version.
-  - **Writes under `%LOCALAPPDATA%` / `%APPDATA%` are unreliable.** A packaged app's write into a new folder there is redirected into `Packages\<family>\LocalCache\` and deleted on uninstall, while a write into a folder that already existed goes to the real path. Nothing durable goes under AppData.
-- **Backups live in a user-chosen folder outside the package and outside AppData.**
+- **The edition is a build constant.** The App defines `MORDWARE_PROD` only when `Configuration == Release`; `Hosting/AppEdition.Current` maps it to `AppEnvironment`. Nothing at run time (no setting, argument or environment value) can change it. The same condition stamps the `MordWare.Edition` assembly metadata, which the architecture tests check per configuration, and picks the exe icon.
+- **Names come from Core.** `EditionProfile.For(AppEnvironment)` returns the packId, the installer title and the data folder name. It is pure and unit-tested. `scripts/pack.ps1` and `scripts/run-dev.ps1` keep their own copy of the names they need, each behind a guard (`pack.ps1 -SelfTest` also compares its table with `EditionProfile`).
+- **Data paths.** Code asks `IAppPaths` (`DataFolder`, `LogsFolder`). The app uses `Hosting/LocalAppDataPaths`: `DataFolder` is the edition's data root itself, and `LogsFolder` is `<root>\Logs`; both are created on first use. Tests use the `TempAppPaths` helper, which creates a unique temp folder and deletes it on dispose; architecture rule 4 keeps them away from the real class.
+- **Why the data root is a sibling of the program files.** Velopack deletes `%LOCALAPPDATA%\<packId>\` on uninstall and on a Setup over an existing install ([S4]); the data roots are never inside it. The two data folder names differ by more than case (Windows paths ignore case), and neither contains the other.
+- **DEV is never published.** Only the release workflow packs, and it packs PROD only. A DEV installer exists only as a local, check-only build (`pack.ps1 -Edition Dev`) for installer and upgrade checks; those checks never install, run or touch PROD or `mordWare Data`.
+- **Before installing PROD on a PC, `%LOCALAPPDATA%\MordWare\` must not hold anything else:** Velopack owns that folder and deletes it on uninstall.
+- **Backups live in a user-chosen folder outside the program files and outside AppData.**
   - The default is `Documents\mordWare Backups` (PROD) or `Documents\mordWare Backups (DEV)`, so the editions never share a backup folder.
   - Every backup records its edition, and a DEV backup is refused by PROD.
   - Documents may be redirected into OneDrive; that is accepted, because backups are encrypted and written whole (a `.tmp` file, then a rename). The live database is never in a synced folder.
   - Foundation builds this; the backup folder is added to `IAppPaths` there.
-- **Verified side by side (2026-11-04).** Both editions installed together, each with its own Start menu entry and its own LocalState. Uninstalling DEV left PROD and its data intact.
 
 ## Localization
 
 - **Resources.** User-facing strings live in `src/MordWare.App/Strings/en-US/Resources.resw` and `Strings/it-IT/Resources.resw`. XAML uses `x:Uid`; code uses `ResourceLoader`.
-- **Language at startup.** `App.ApplyAppLanguage` sets `ApplicationLanguages.PrimaryLanguageOverride` and the .NET current cultures to the app language on every start. Windows persists the override per package, so it must be set every time.
+- **Language at startup.** `Program.Main` calls `App.ApplyAppLanguage` before the XAML application starts. It sets the Windows App SDK's `Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride` and the .NET current cultures to the app language on every start. The `Windows.Globalization` override needs package identity and throws in the unpackaged app; set any later (for example in `OnLaunched`), the override no longer changes the language resources load in.
 - **Default language.** Until the foundation change adds a language setting, the language is `AppLanguages.Default` (en-US).
 
 ## Running and debugging
 
-_Current until [D], which removes the package registration and Developer Mode from the DEV workflow._
-
-- **Build everything:** `dotnet build MordWare.slnx`
+- **Build everything:** `dotnet build MordWare.slnx` (Debug = DEV). The App always builds for x64 (`bin\x64\<configuration>\...\win-x64\`).
 - **Run DEV:** `.\scripts\run-dev.ps1` (Windows PowerShell 5.1 or PowerShell 7), or F5 in Visual Studio.
-  - The script checks Developer Mode and the SDK, then registers the `MordWare.Dev` package from the Debug build output and starts it through its Start menu identity (`shell:AppsFolder\MordWare.Dev_<hash>!App`).
-  - `-NoBuild` starts the already-deployed DEV edition.
-  - `-Reset` removes the DEV registration and its data first, after confirmation (`-Force` skips the prompt).
-  - It never builds Release and never touches the `MordWare` (PROD) package.
-- **Why the script doesn't let `dotnet run` launch the app.** `dotnet run` on this project (via `Microsoft.Windows.SDK.BuildTools.WinApp`) launches the app and then waits until its window closes. If that `dotnet run` is interrupted, the app can disappear with it. The script passes `-p:WinAppRunNoLaunch=true`, so `dotnet run` only builds and registers, and the app runs independently of the console. To use `dotnet run` directly without blocking, add `-p:WinAppRunDetach=true`.
+  - The script builds the App in Debug for x64, then starts `MordWare.App.exe` from the build output, independent of the console.
+  - `-NoBuild` starts the existing build.
+  - `-Reset` deletes the `mordWare Data (DEV)` folder first, after confirmation (`-Force` skips the prompt). A guard refuses any folder name that does not end in `(DEV)`.
+  - If a `MordWare.Dev` app registration from the earlier MSIX setup is still on the account, it offers once to remove it (DEV only, exact name; a "no" is remembered in the DEV data folder).
+  - It never builds Release, and never touches `%LOCALAPPDATA%\MordWare\` or `mordWare Data`.
+- **Entry point.** `Program.Main` (the project defines `DISABLE_XAML_GENERATED_MAIN`) runs Velopack's install hooks first (`VelopackApp.Build().Run()`, which exits when the installer started the app for a hook), then applies the language and starts WinUI. No logger is attached to Velopack: its messages contain user-profile paths (guardrail 6).
+- **Why `EnableMsixTooling` stays `true`** although the app is unpackaged: without it, `dotnet publish` drops the app's own `.pri` (resources and compiled XAML) and the installed window crashes ([S4] (j)).
 - **Tests:**
   - Whole suite: `dotnet test --solution MordWare.slnx`.
-  - Focused: `dotnet test --project tests/MordWare.Tests.Unit --filter-class "*AppEnvironment*"`.
+  - Focused: `dotnet test --project tests/MordWare.Tests.Unit --filter-class "*EditionProfile*"`.
   - Architecture tests read the App's build output, and `dotnet test` builds it first through the build-order reference.
-- **Stale DEV registration** (deploy fails, or an old build keeps launching): remove the DEV package with `Get-AppxPackage MordWare.Dev | Remove-AppxPackage`, then run again. This deletes DEV's LocalState, and only DEV's.
-- **Never test against PROD.** Running or installing the `MordWare` package for a check is done only when a task explicitly requires it, and the test registration is removed afterwards.
+- **Never test against PROD.** Running or installing PROD for a check is done only when a task explicitly requires it, with the owner's approval, and anything it created is removed afterwards.
 
-## Delivery (planned)
+## Packing
 
-Decided 2026-11-05; built by roadmap items [S4], [D] and [U].
+`scripts/pack.ps1 -Edition Prod|Dev -Version <semver> [-OutputDir <path>]` (PowerShell 7) turns one edition into a per-user Velopack installer:
 
-- **No Microsoft Store and no code signing.** An unsigned MSIX cannot be installed ([S3]), so mordWare becomes an **unpackaged** WinUI 3 app (Windows App SDK self-contained).
-- **Installer.** A per-user installer that installs mordWare or upgrades an existing installation, without admin rights, published on GitHub Releases and linked from the project website. [S4] confirmed Velopack (MIT): its `Setup.exe` installs into `%LOCALAPPDATA%\<packId>\`, delta packages keep updates small, and its update API reads GitHub Releases or a local folder. The app is x64 only.
-- **Unsigned first run.** The browser may warn about the download, and Windows SmartScreen shows "Windows protected your PC" for an unsigned installer ("More info", then "Run anyway"). Windows 11's Smart App Control, where it is on, blocks unsigned executables with no per-app exception; whether that changes the no-signing decision is an owner decision before v1.0.0 (roadmap [D]).
-- **Editions.** Fixed by the build (Release = PROD, every other configuration = DEV), with separate app ids, data folders, Start menu entries and icons. The data folder never lives inside the installer's own folder, which Velopack deletes on uninstall and on a reinstall over it. Decided in [S4]: `%LOCALAPPDATA%\mordWare Data\` (PROD) and `%LOCALAPPDATA%\mordWare Data (DEV)\`, siblings of the install folder. [D] and Foundation build them.
-- **Releases.** A release workflow runs when a `v*.*.*` tag that points at a commit on `main` is pushed: build, test, pack the installer, publish the GitHub Release. The version comes from the tag. A manual dry-run mode builds the installer without publishing. No release exists before v1.0.0.
-- **Updates.** At startup the app checks GitHub Releases (on by default, can be turned off, sends no user data) and installs a newer version only after the user clicks "Update".
+1. `dotnet publish` of the App, self-contained for `win-x64`: Release for Prod, Debug for Dev, with `-p:Version=<version>`, `ContinuousIntegrationBuild` and no PDBs.
+2. The legal texts go into the publish folder: `LICENSE`, `LICENSE-EXCEPTION.txt` and `THIRD-PARTY-NOTICES.txt` from the repository, plus the upstream notices of the Windows App SDK and the .NET runtime, copied byte for byte from their NuGet packages into `third-party-notices\<package>\`. The script refuses to pack without any of them.
+3. `dotnet vpk pack` (vpk pinned in `.config/dotnet-tools.json`) with the edition's packId, title and icon, the default channel `win`, a Start menu shortcut only (`--shortcuts StartMenuRoot`), no portable zip (`--noPortable`) and no delta package (`--delta None`).
+4. The package scan, `check-public-safety.ps1 -Package` over the Velopack output and the publish folder (see [Public-safety checks](#public-safety-checks)).
+
+- **Output** (gitignored): `artifacts\pack\<Edition>\publish` (cleaned every run) and `artifacts\pack\<Edition>\releases`, which keeps earlier versions. `Setup.exe` is named per packId, so copy it aside before packing the next version for an upgrade check.
+- **Versions:** a release uses the tag's version; the dry run `0.0.0-dryrun.<run number>`; local checks `0.0.<n>`. The App's own default is `0.0.0-dev`.
+- **The name guard.** `pack.ps1` refuses any edition, packId, title and configuration that is not exactly PROD = `MordWare` / "mordWare" / Release or DEV = `MordWare.Dev` / "mordWare (DEV)" / Debug. `pack.ps1 -SelfTest` proves the guard and compares the names with `EditionProfile`.
+- **Only Prod is published**, and only by the release workflow. `pack.ps1 -Edition Dev` is the check-only DEV installer: install, upgrade and uninstall checks use it, never a Prod `Setup.exe`.
+- **Setup over an existing install:** Velopack's `Setup.exe` fails when started within about 2 seconds of the previous install or app run ("Failed to remove existing application directory"). Wait a few seconds before installing a newer version over an older one.
+- **Deterministic, path-free binaries.** `Directory.Build.props` sets `Deterministic`, `PathMap` (repository root to `/_/`) and, in Release, `DebugType=none` for every project under `src/`; `ContinuousIntegrationBuild` is set by CI and by `pack.ps1`. Local Debug builds keep their PDBs.
+- **Trimmed Windows App SDK.** The App references only the component packages it needs (`Microsoft.WindowsAppSDK.Base`, `.Foundation`, `.InteractiveExperiences`, `.WinUI`, `.DWrite`, all 2.6.5), never the `Microsoft.WindowsAppSDK` metapackage: no Windows ML, AI, Search or Widgets runtime ships (no `onnxruntime*`, `DirectML*` or `Microsoft.Windows.AI*` file). A component added later goes into `Directory.Packages.props`, `LICENSE-EXCEPTION.txt` and `THIRD-PARTY-NOTICES.txt` in the same change.
+
+## Releases
+
+`.github/workflows/release.yml`:
+
+- **Triggers.** A pushed tag `v*.*.*` (a release), and `workflow_dispatch` (the dry run). Release runs are never cancelled by a newer run.
+- **Job `release`** (`windows-latest`, 30 minutes, `contents: read`):
+  1. Full checkout.
+  2. `scripts/release-prep.ps1`: for a tag, the tag must be `vX.Y.Z`, the tagged commit must be on `main` (`git merge-base --is-ancestor <sha> origin/main`), and `CHANGELOG.md` must have a `## [X.Y.Z]` section; the version is `X.Y.Z`. For the dry run, the version is `0.0.0-dryrun.<run number>` and the notes use `## [Unreleased]`. In both modes it writes the release notes: the changelog section, then "mordWare is licensed GPL-3.0-only with an additional permission (LICENSE-EXCEPTION.txt). Source code for this version: <repository>/tree/<tag or commit>".
+  3. Restore, Release build and the full test suite. A failing test stops the job before anything is packed.
+  4. `pack.ps1 -Edition Prod -Version <version>`, which includes the package scan. DEV is never packed here.
+  5. The Velopack output and the notes file are uploaded as a workflow artifact (`mordWare-<version>`, kept 7 days).
+- **Job `publish`**, only for a pushed tag (never for `workflow_dispatch`, so the dry run cannot publish), `contents: write`: downloads the artifact, runs `vpk upload github --publish --tag vX.Y.Z --releaseName "mordWare X.Y.Z" --targetCommitish <sha>` with the token in `VPK_TOKEN` (never on the command line), then sets the release notes with `gh release edit --notes-file`. GitHub adds the tag's source archives to the release.
+- **Testing the workflow.** There is no release before v1.0.0: the dry run is the release workflow's test. It does every step but `publish`, and its artifact shows the exact installer and notes a release would get. `release-prep.ps1 -SelfTest` checks the tag, main and changelog rules against a throwaway repository.
+- **Delivery facts** ([S4]). The installer is per user, without admin rights, and installs into `%LOCALAPPDATA%\<packId>\` with a Start menu entry and an installed-apps entry. A newer installer upgrades in place; uninstalling removes the program files, the Start menu entry and the installed-apps entry, and leaves the data root. The app is x64 only and not code-signed: the browser and SmartScreen may warn on first run, and Smart App Control, where it is on, blocks unsigned apps (an owner decision before v1.0.0, see the roadmap).
+- **Updates** come with roadmap item [U]: at startup the app checks GitHub Releases (on by default, can be turned off, sends no user data) and installs a newer version only after the user clicks "Update".
 
 ## CI
 
-- **Workflow.** `.github/workflows/ci.yml` runs on push to `main` and on pull requests, and cancels superseded runs. Every job runs on `windows-latest` with a timeout.
-- **`build-test` job** (`timeout-minutes: 20`). Restore with `-p:Configuration=Release` (the App enables ReadyToRun in Release, whose runtime pack must be restored for that configuration), Release build with `GenerateAppxPackageOnBuild=false`, then `dotnet test --solution MordWare.slnx -c Release --no-build`.
+- **Workflow.** `.github/workflows/ci.yml` runs on push to `main` and on pull requests, and cancels superseded runs. Every job runs on `windows-latest` with a timeout. It never packs; packing belongs to `release.yml`.
+- **`build-test` job** (`timeout-minutes: 20`). Restore, Release build, then `dotnet test --solution MordWare.slnx -c Release --no-build`.
 - **`public-safety` job** (`timeout-minutes: 10`). Full-history checkout, a pinned gitleaks release verified by SHA-256, then `scripts/check-public-safety.ps1 -History` (every commit's identity, and gitleaks over the whole history), `-All` and `-SelfTest`. Commits in a pull request must therefore use a GitHub no-reply address too.
 - **Cost.** Standard GitHub-hosted runners are free for public repositories; the timeouts stay so a hung job cannot run for hours.
 - **Active from the first push** to `KingMordas/mordWare` (roadmap [R]).
@@ -166,8 +192,14 @@ The repository is public, so nothing personal, secret, machine-specific or about
 | Git hooks (`.githooks/`) | every local commit, after `git config core.hooksPath .githooks` | `pre-commit` runs `-Staged`; `commit-msg` runs `-MessageFile`. |
 | Private deny list | `.public-safety.local.txt`, gitignored | The owner's own words (real name, e-mail, local names). It is never committed, so the check never publishes what it looks for. CI cannot see it. |
 | CI `public-safety` job | every push and pull request | `-History` (identities and gitleaks over the full history), `-All` and `-SelfTest`. |
+| Package scan | `pack.ps1`, locally and in `release.yml` before any upload | `-Package` over the packed installer (see below). |
 | Claude Code hook (`.claude/settings.json`) | every shell command the assistant runs | Blocks `--no-verify` / `commit -n`, `core.hooksPath` changes and repository visibility changes. |
 | GitHub settings | owner's account and repository | E-mail privacy, blocking pushes that expose a private e-mail, secret scanning and push protection. |
 
-- **Modes of the script:** `-Staged` (the pre-commit hook), `-MessageFile <path>` (the commit-msg hook), `-All` (every tracked file: CI and before going public), `-History` (every commit's author and committer identity, plus gitleaks over the full history) and `-SelfTest` (builds a throwaway repository in a temp folder and proves every rule refuses its sample).
+- **Modes of the script:** `-Staged` (the pre-commit hook), `-MessageFile <path>` (the commit-msg hook), `-All` (every tracked file: CI and before going public), `-History` (every commit's author and committer identity, plus gitleaks over the full history), `-Package <folder>...` (a packed release) and `-SelfTest` (builds a throwaway repository and a throwaway package in a temp folder and proves every rule refuses its sample).
+- **The package scan (`-Package`).** Every `.nupkg` is expanded, and each `Setup.exe` must embed its full package byte for byte. Strings are read as ASCII and as UTF-16 (both byte offsets), split into printable runs.
+  - **Own files** (`MordWare.*`, `Assets`, the three legal texts, the package metadata) must pass the user-path, this-PC (profile path, user name, computer name), package-hash, e-mail, private-key and private-word rules.
+  - **Third-party files** pass only if byte-identical (SHA-256) to a file of their upstream package in the NuGet global packages folder or the .NET packs folder; the copies in `third-party-notices\` are such files.
+  - **Velopack-derived binaries**, the one exception: vpk builds the `Setup.exe` stub, the shortcut stub (`*_ExecutionStub.exe`) and `Squirrel.exe` per app (manifest, icon and version resources), so they can never be identical to upstream. Each passes only if every rule hit in it also occurs, with the same text, in its vendor binary of the pinned vpk package (`setup*.exe`, `stub*.exe`, `update*.exe`), and it has no this-PC or private-word hit.
+  - The report lists the accepted third-party files per upstream package.
 - **No bypass.** There is no switch to skip a rule. A false positive is fixed by changing the content (for example, a placeholder such as `<user folder>`) or, for a rule that is genuinely wrong, by changing the script in its own reviewed change.

@@ -1,0 +1,139 @@
+# Release: build, test, pack and scan the PROD installer; publish it only for a version tag on main.
+# - A pushed tag vX.Y.Z on a commit of main: the release job, then the publish job (GitHub Release).
+# - workflow_dispatch: the dry run. Same release job with version 0.0.0-dryrun.<run number>; the
+#   installer and its notes stay a workflow artifact. The publish job never runs for it.
+# Only the PROD edition is ever packed here; DEV is never published (docs/architecture.md, "Releases").
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+# One release run per ref at a time; a tag run is never cancelled by a newer one.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Build, test, pack and scan (PROD)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    outputs:
+      version: ${{ steps.prep.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the on-main check needs origin/main
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # Tag format, tagged commit on main, changelog section; writes the release notes.
+      - name: Prepare
+        id: prep
+        shell: pwsh
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          $notes = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          if ($env:EVENT -eq 'push') {
+            ./scripts/release-prep.ps1 -Tag $env:REF_NAME -Sha $env:SHA -NotesFile $notes
+          } else {
+            ./scripts/release-prep.ps1 -DryRun -RunNumber ([int]$env:RUN_NUMBER) -Sha $env:SHA -NotesFile $notes
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Restore
+        run: dotnet restore MordWare.slnx
+
+      - name: Build
+        run: dotnet build MordWare.slnx -c Release --no-restore
+
+      # Packing runs only after the tests pass: a failed test stops the job here.
+      - name: Test
+        run: dotnet test --solution MordWare.slnx -c Release --no-build
+
+      - name: Restore tools (vpk)
+        run: dotnet tool restore
+
+      # PROD only: publish, legal texts, vpk pack, then the package scan (check-public-safety.ps1 -Package).
+      - name: Pack and scan
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.prep.outputs.version }}
+        run: |
+          ./scripts/pack.ps1 -Edition Prod -Version $env:VERSION -OutputDir (Join-Path $env:RUNNER_TEMP 'pack')
+          Copy-Item (Join-Path $env:RUNNER_TEMP 'release-notes.md') (Join-Path $env:RUNNER_TEMP 'pack\releases\release-notes.md')
+
+      # Kept in both modes: the dry run's installer and notes are inspected from here.
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: mordWare-${{ steps.prep.outputs.version }}
+          path: ${{ runner.temp }}/pack/releases/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish the GitHub Release
+    needs: release
+    # Tags only: a dry run (workflow_dispatch) can never publish.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      VERSION: ${{ needs.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4   # for global.json and the pinned vpk tool only
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore tools (vpk)
+        run: dotnet tool restore
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: mordWare-${{ needs.release.outputs.version }}
+          path: ${{ runner.temp }}/releases
+
+      # The token comes from the environment (VPK_TOKEN), never from the command line.
+      - name: Upload the release
+        shell: pwsh
+        env:
+          VPK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.sha }}
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'releases'
+          $notes = Join-Path $dir 'release-notes.md'
+          Move-Item $notes (Join-Path $env:RUNNER_TEMP 'release-notes.md')
+          dotnet vpk upload github --repoUrl https://github.com/KingMordas/mordWare --outputDir $dir --channel win `
+            --publish --tag "v$env:VERSION" --releaseName "mordWare $env:VERSION" --targetCommitish $env:SHA
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Set the release notes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "v$env:VERSION" --repo KingMordas/mordWare --notes-file (Join-Path $env:RUNNER_TEMP 'release-notes.md')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -9,7 +9,10 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite.Core" Version="10.0.14" />
     <PackageVersion Include="SQLite3MC.PCLRaw.bundle" Version="2.6.1" />
     <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.14" />
-    <!-- S4 installer spike. Velopack (MIT); its vpk CLI (MIT) is pinned in spikes/S4.Installer/.config/dotnet-tools.json. -->
-    <PackageVersion Include="Velopack" Version="1.2.161" />
+    <!-- S3 storage spike: the packaged WinUI 3 setup the app used before [D] (Windows App SDK metapackage,
+         Microsoft Software License Terms; WinApp build tools for packaged dotnet run). Spike-only since the
+         app references the trimmed component packages. -->
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.6.5" />
+    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools.WinApp" Version="0.7.1" />
   </ItemGroup>
 </Project>

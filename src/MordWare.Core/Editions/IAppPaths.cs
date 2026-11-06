@@ -2,7 +2,7 @@ namespace MordWare.Core.Editions;
 
 /// <summary>
 /// Where the running edition keeps its files. Code never builds data paths itself: it asks this
-/// abstraction, so the installed app resolves its own per-package folder while tests get a temporary one.
+/// abstraction, so the app resolves its own edition's folder while tests get a temporary one.
 /// Backup locations are added by the foundation change.
 /// </summary>
 public interface IAppPaths

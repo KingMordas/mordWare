@@ -75,7 +75,7 @@ Removed:
 - **Entry point.** Define `DISABLE_XAML_GENERATED_MAIN` and add `Program.Main` (`[STAThread]`): `VelopackApp.Build().Run()` first, then `ComWrappersSupport.InitializeComWrappers()` and `Application.Start` with a `DispatcherQueueSynchronizationContext`, as in [S4].
   - No `OnFirstRun` customization: a normal install starts the app once, which is the desired behavior.
   - No logger is attached. Velopack's messages contain user-profile paths (guardrail 6), and logging is Foundation's.
-- **Language.** `App.ApplyAppLanguage` switches to `Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride` (Windows App SDK). The .NET culture lines stay. Startup order stays: language first, then `AppHost.Create`, then the window.
+- **Language.** `App.ApplyAppLanguage` switches to `Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride` (Windows App SDK). The .NET culture lines stay. Startup order stays: language first, then `AppHost.Create`, then the window. *Found in apply:* the call moves from `OnLaunched` to `Program.Main`, before `Application.Start`; set in `OnLaunched`, the override no longer changed the resources' language unpackaged (the it-IT window showed English).
 
 ### D5. Trimmed Windows App SDK
 
@@ -99,7 +99,7 @@ The `Microsoft.WindowsAppSDK` metapackage pulls in ML, AI, Search and Widgets, a
 - **`THIRD-PARTY-NOTICES.txt`** (root) lists every redistributed component with its license:
   - MIT: the .NET runtime, Velopack, CommunityToolkit.Mvvm and the C#/WinRT runtime;
   - BSD-3-Clause: the WebView2 loader;
-  - Microsoft Software License Terms: the Windows App SDK components and the Windows SDK projection, each with the full terms text, copied from the package's `license.txt`, and the Windows App SDK's own third-party notices.
+  - Microsoft Software License Terms: the Windows App SDK components and the Windows SDK projection, each with the full terms text, copied from the package's `license.txt`, and the Windows App SDK's own third-party notices. *Decided in apply (owner, 2026-11-06):* the upstream third-party notices of the Windows App SDK and the .NET runtime contain e-mail addresses, which the repository's e-mail rule refuses, so they are not committed: `pack.ps1` copies them byte for byte from their NuGet packages into `third-party-notices\<package>\` of every package, and the committed file lists every component with its full license terms (the projection's terms come from https://aka.ms/WinSDKLicenseURL, as its package has no license file).
 
   It is hand-maintained. A test in the architecture-test project checks that every `PackageReference` of the App project, and every package named in an allow-list of known transitive redistributables, has an entry. A new dependency therefore cannot ship unlisted.
 - **What the installer ships.** `scripts/pack.ps1` copies `LICENSE`, `LICENSE-EXCEPTION.txt` and `THIRD-PARTY-NOTICES.txt` into the publish folder, and a pack check refuses a package without them.
@@ -112,9 +112,9 @@ The `Microsoft.WindowsAppSDK` metapackage pulls in ML, AI, Search and Widgets, a
 
 `scripts/pack.ps1 -Edition Prod|Dev -Version <semver> [-OutputDir <path>]` (PowerShell 7) packs one edition:
 
-1. `dotnet publish` the App: `-c Release` for Prod, `-c Debug` for Dev, `-r win-x64`, with the deterministic properties from D8.
+1. `dotnet publish` the App: `-c Release` for Prod, `-c Debug` for Dev, `-r win-x64`, with the deterministic properties from D8 and `-p:DebugType=none` (no PDBs in any package: a Debug PDB's random bytes tripped the e-mail rule, and vpk drops PDBs anyway).
 2. Copies the three legal texts into the publish folder and refuses to continue if one is missing.
-3. Runs `dotnet vpk pack` with the edition's packId and title, the default channel (`win`), `--shortcuts StartMenuRoot`, no portable zip (if vpk 1.2.161 has no switch to skip the portable zip, it is deleted from the output and never uploaded), and the edition's icon.
+3. Runs `dotnet vpk pack` with the edition's packId and title, the default channel (`win`), `--shortcuts StartMenuRoot`, no portable zip (`--noPortable`, available in vpk 1.2.161), no delta package (`--delta None`: deltas come with [U], and delta files are neither our own nor upstream-identical), and the edition's icon.
 4. Runs `check-public-safety.ps1 -Package <output>` (D9).
 
 Further rules:
@@ -145,6 +145,7 @@ A new `-Package <folder>` mode folds in `spikes/S4.Installer/scan-package.ps1`:
 - **Own files** (`MordWare.*` assemblies, `.pri`, `.xbf`, resources) must be clean.
 - **A third-party file** passes only if its SHA-256 equals a file in its upstream NuGet package. The script looks in the NuGet global packages folder, which restore populates in CI.
 - It reports the accepted third-party files.
+- *Decided in apply (owner, 2026-11-06):* vpk builds three Velopack binaries per app (the `Setup.exe` stub, `<title>_ExecutionStub.exe` and `Squirrel.exe`, with the app's manifest, icon and version resources), so they can never be byte-identical to upstream. Each passes only if every rule hit in it also occurs, with the same text, in its vendor binary of the pinned vpk package (`setup*.exe`, `stub*.exe`, `update*.exe`), and it has no this-PC or private-word hit. Findings carry their raw matched text (never printed) for this comparison, and `Test-Line` now reports every user path in a line, not only the first. Strings are split into printable runs, because a binary's neighboring bytes would otherwise hide a path from the word-boundary rules.
 - `-SelfTest` gains a sample: a planted own file with a user path must fail, and a clean one must pass.
 
 ### D10. Release workflow: `.github/workflows/release.yml`

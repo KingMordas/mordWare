@@ -20,7 +20,7 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
 
-        AppWindow.SetIcon(ViewModel.IconPath);
+        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, ViewModel.IconPath));
         TitleBarIcon.ImageSource = new BitmapImage(new Uri($"ms-appx:///{ViewModel.IconPath}"));
 
         RootFrame.Navigate(typeof(MainPage));

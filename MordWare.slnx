@@ -1,7 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/MordWare.App/MordWare.App.csproj">
-      <Platform Project="x86" />
+      <Platform Project="x64" />
     </Project>
     <Project Path="src/MordWare.Core/MordWare.Core.csproj" />
     <Project Path="src/MordWare.Integrations/MordWare.Integrations.csproj" />

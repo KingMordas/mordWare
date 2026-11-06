@@ -48,8 +48,8 @@ public static class MordWareArchitecture
 
         var loader = new ArchLoader().LoadAssemblies(libraries);
 
-        // By file path, never Assembly.LoadFile: ArchUnitNET reads metadata only, so a Release App
-        // built for x86 with ReadyToRun (native code) is read even by a 64-bit test process.
+        // By file path, never Assembly.LoadFile: ArchUnitNET reads metadata only, so the WinUI App
+        // (self-contained, x64) is read without loading or running any of its code.
         foreach (var path in byPath)
         {
             loader = loader.LoadFilteredDirectory(Path.GetDirectoryName(path)!, Path.GetFileName(path));
@@ -61,10 +61,10 @@ public static class MordWareArchitecture
     /// <summary>
     /// Finds <paramref name="fileName"/> under the project's bin folder for the same configuration
     /// (Debug/Release) this test assembly was built in: either <c>bin/&lt;Configuration&gt;/</c> or,
-    /// when the solution builds the project for a platform (the App is mapped to x86),
-    /// <c>bin/&lt;Platform&gt;/&lt;Configuration&gt;/</c>. The newest match wins; the AppX layout is never read.
+    /// when the solution builds the project for a platform (the App is mapped to x64),
+    /// <c>bin/&lt;Platform&gt;/&lt;Configuration&gt;/</c>. The newest match wins.
     /// </summary>
-    private static string FindBuildOutput(string projectFolder, string fileName)
+    internal static string FindBuildOutput(string projectFolder, string fileName)
     {
         var here = new DirectoryInfo(AppContext.BaseDirectory);   // .../bin/<Configuration>/<tfm>/
         var configuration = here.Parent!.Name;
@@ -90,7 +90,6 @@ public static class MordWareArchitecture
         var match = configurationFolders
             .Where(Directory.Exists)
             .SelectMany(folder => Directory.EnumerateFiles(folder, fileName, SearchOption.AllDirectories))
-            .Where(p => !p.Contains($"{Path.DirectorySeparatorChar}AppX{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(File.GetLastWriteTimeUtc)
             .FirstOrDefault();
 

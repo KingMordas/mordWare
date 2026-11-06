@@ -25,7 +25,7 @@ The release process SHALL offer a manually started dry run that performs every r
 - **THEN** it builds, tests, packs and scans the installer, makes it downloadable from the run, and creates no release and no tag
 
 ### Requirement: Packages are scanned before publishing
-Before anything is published, the release run SHALL scan the packed release for personal, secret and machine-specific content. The project's own files SHALL contain none. A third-party file SHALL pass only if it is identical to the file its upstream package ships.
+Before anything is published, the release run SHALL scan the packed release for personal, secret and machine-specific content. The project's own files SHALL contain none. A third-party file SHALL pass only if it is identical to the file its upstream package ships, except for the installer tool's own programs (next requirement).
 
 #### Scenario: Local path in the app's own files
 - **WHEN** a release package contains a file of the app's own with an absolute user-folder path or a private word
@@ -34,6 +34,13 @@ Before anything is published, the release run SHALL scan the packed release for 
 #### Scenario: Clean package passes
 - **WHEN** the scan runs on a package built by the release process from clean sources
 - **THEN** it passes, and reports which third-party files it accepted as identical to upstream
+
+### Requirement: Installer programs are checked against their originals
+The installer tool builds its setup program, shortcut stub and updater for each app, so they cannot be identical to upstream. Each SHALL pass the scan only if it contains no flagged content beyond what the tool's pinned original of that program contains, and nothing that names this PC or a private word.
+
+#### Scenario: Installer program adds flagged content
+- **WHEN** the installer tool's setup program, shortcut stub or updater in a package contains an absolute user-folder path, e-mail address or package hash that the tool's pinned original does not contain
+- **THEN** the scan fails, names the file, and nothing is published
 
 ### Requirement: Release notes come from the changelog
 Each release's notes SHALL be that version's section of the changelog, followed by the license statement and the link to the version's source. A release run SHALL fail if the changelog has no section for its version.

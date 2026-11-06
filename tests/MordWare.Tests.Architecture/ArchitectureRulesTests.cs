@@ -49,7 +49,7 @@ public class ArchitectureRulesTests
     public void Rule4_tests_never_resolve_the_real_data_location()
     {
         IArchRule rule = Types().That().ResideInAssemblyMatching(Exactly(TestAssemblies))
-            .Should().NotDependOnAnyTypesThat().HaveFullName("MordWare.App.Hosting.PackagedAppPaths")
+            .Should().NotDependOnAnyTypesThat().HaveFullName("MordWare.App.Hosting.LocalAppDataPaths")
             .AndShould().NotDependOnAnyTypesThat().HaveFullName("MordWare.App.Hosting.AppHost")
             .Because("tests use a temporary folder and must never touch an installed edition's data");
         ArchRuleAssert.HasNoViolations(rule);

@@ -1,0 +1,39 @@
+mordWare
+Copyright (C) 2026 KingMordas
+
+mordWare is licensed under the GNU General Public License version 3 only
+(GPL-3.0-only); see the file LICENSE. This file adds one additional
+permission under section 7 of that license. It does not change the
+license text, and it grants nothing beyond what is written here.
+
+Additional permission under GNU GPL version 3 section 7
+
+If you modify this Program, or any covered work, by linking or combining
+it with the Microsoft platform runtime listed below (or a modified version
+of it), containing parts covered by the terms of the Microsoft Software
+License Terms under which Microsoft distributes it, the licensors of this
+Program grant you additional permission to convey the resulting work.
+
+The Microsoft platform runtime covered by this permission is exactly:
+
+  1. These Windows App SDK runtime components, as distributed by Microsoft
+     in the NuGet packages of the same names:
+       - Microsoft.WindowsAppSDK.Base
+       - Microsoft.WindowsAppSDK.Foundation
+       - Microsoft.WindowsAppSDK.InteractiveExperiences
+       - Microsoft.WindowsAppSDK.WinUI
+       - Microsoft.WindowsAppSDK.DWrite
+
+  2. The Windows SDK projection for .NET (Microsoft.Windows.SDK.NET), as
+     distributed by Microsoft in the Microsoft.Windows.SDK.NET.Ref package.
+
+The Corresponding Source of a work conveyed under this permission does not
+include the source code of the components listed above.
+
+This permission covers only the components listed above. It grants no
+permission for any other component that is not licensed under terms
+compatible with the GNU General Public License version 3.
+
+If you modify mordWare, you may extend this permission to your version,
+but you are not obligated to do so. If you do not wish to do so, delete
+this permission from your version.

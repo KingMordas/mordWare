@@ -7,4 +7,18 @@
     <Company>mordWare</Company>
     <Product>mordWare</Product>
   </PropertyGroup>
+
+  <!--
+    Binary public safety (guardrail 11, docs/architecture.md "Packing"): the shipped binaries are
+    deterministic and carry no build-machine path. Applies to every project under src/.
+    ContinuousIntegrationBuild is set by CI (GitHub Actions) and by scripts/pack.ps1.
+  -->
+  <PropertyGroup Condition="$(MSBuildProjectDirectory.Replace('\', '/').Contains('/src/'))">
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildThisFileDirectory)=/_/</PathMap>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(MSBuildProjectDirectory.Replace('\', '/').Contains('/src/')) and '$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+  </PropertyGroup>
 </Project>

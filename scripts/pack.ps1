@@ -29,7 +29,7 @@
     Prod or Dev.
 
 .PARAMETER Version
-    The package version (SemVer 2): the tag's version for a release, 0.0.0-dryrun.<run> for the dry
+    The package version (SemVer 2): the tag's version for a release, 0.1.0-dryrun.<run> for the dry
     run, 0.0.<n> for local checks.
 
 .PARAMETER OutputDir

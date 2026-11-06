@@ -151,7 +151,7 @@ The owner develops on the same PC that runs the real app, so the separation is s
 4. The package scan, `check-public-safety.ps1 -Package` over the Velopack output and the publish folder (see [Public-safety checks](#public-safety-checks)).
 
 - **Output** (gitignored): `artifacts\pack\<Edition>\publish` (cleaned every run) and `artifacts\pack\<Edition>\releases`, which keeps earlier versions. `Setup.exe` is named per packId, so copy it aside before packing the next version for an upgrade check.
-- **Versions:** a release uses the tag's version; the dry run `0.0.0-dryrun.<run number>`; local checks `0.0.<n>`. The App's own default is `0.0.0-dev`.
+- **Versions:** a release uses the tag's version; the dry run `0.1.0-dryrun.<run number>` (vpk refuses versions below 0.0.1, so a `0.0.x` pre-release cannot be used); local checks `0.0.<n>`. The App's own default is `0.0.0-dev`.
 - **The name guard.** `pack.ps1` refuses any edition, packId, title and configuration that is not exactly PROD = `MordWare` / "mordWare" / Release or DEV = `MordWare.Dev` / "mordWare (DEV)" / Debug. `pack.ps1 -SelfTest` proves the guard and compares the names with `EditionProfile`.
 - **Only Prod is published**, and only by the release workflow. `pack.ps1 -Edition Dev` is the check-only DEV installer: install, upgrade and uninstall checks use it, never a Prod `Setup.exe`.
 - **Setup over an existing install:** Velopack's `Setup.exe` fails when started within about 2 seconds of the previous install or app run ("Failed to remove existing application directory"). Wait a few seconds before installing a newer version over an older one.
@@ -165,7 +165,7 @@ The owner develops on the same PC that runs the real app, so the separation is s
 - **Triggers.** A pushed tag `v*.*.*` (a release), and `workflow_dispatch` (the dry run). Release runs are never cancelled by a newer run.
 - **Job `release`** (`windows-latest`, 30 minutes, `contents: read`):
   1. Full checkout.
-  2. `scripts/release-prep.ps1`: for a tag, the tag must be `vX.Y.Z`, the tagged commit must be on `main` (`git merge-base --is-ancestor <sha> origin/main`), and `CHANGELOG.md` must have a `## [X.Y.Z]` section; the version is `X.Y.Z`. For the dry run, the version is `0.0.0-dryrun.<run number>` and the notes use `## [Unreleased]`. In both modes it writes the release notes: the changelog section, then "mordWare is licensed GPL-3.0-only with an additional permission (LICENSE-EXCEPTION.txt). Source code for this version: <repository>/tree/<tag or commit>".
+  2. `scripts/release-prep.ps1`: for a tag, the tag must be `vX.Y.Z`, the tagged commit must be on `main` (`git merge-base --is-ancestor <sha> origin/main`), and `CHANGELOG.md` must have a `## [X.Y.Z]` section; the version is `X.Y.Z`. For the dry run, the version is `0.1.0-dryrun.<run number>` and the notes use `## [Unreleased]`. In both modes it writes the release notes: the changelog section, then "mordWare is licensed GPL-3.0-only with an additional permission (LICENSE-EXCEPTION.txt). Source code for this version: <repository>/tree/<tag or commit>".
   3. Restore, Release build and the full test suite. A failing test stops the job before anything is packed.
   4. `pack.ps1 -Edition Prod -Version <version>`, which includes the package scan. DEV is never packed here.
   5. The Velopack output and the notes file are uploaded as a workflow artifact (`mordWare-<version>`, kept 7 days).

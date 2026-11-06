@@ -11,7 +11,7 @@
       3. CHANGELOG.md has a "## [X.Y.Z]" section.
       The version is X.Y.Z.
 
-    Dry-run mode (-DryRun -RunNumber <n>): the version is 0.0.0-dryrun.<n> and the notes use the
+    Dry-run mode (-DryRun -RunNumber <n>): the version is 0.1.0-dryrun.<n> (vpk refuses versions below 0.0.1, and any 0.0.x pre-release sorts below 0.0.1; it still sorts below every real release) and the notes use the
     "## [Unreleased]" section, so the dry run shows the exact notes a release would get. Nothing is
     published in this mode (the workflow's publish job never runs for it).
 
@@ -82,7 +82,7 @@ function Invoke-Prep {
         $sourceRef = "v$version"
     }
     else {
-        $version = "0.0.0-dryrun.$Run"
+        $version = "0.1.0-dryrun.$Run"
         $section = Get-ChangelogSection (Join-Path $Root 'CHANGELOG.md') 'Unreleased'
         if ($null -eq $section) { throw "CHANGELOG.md has no '## [Unreleased]' section." }
         $sourceRef = $Commit
@@ -135,7 +135,7 @@ function Invoke-SelfTest {
 
         $v = Invoke-Prep 'DryRun' '' 42 $onMain $notes $tmp 'main'
         $text = [System.IO.File]::ReadAllText($notes)
-        Check 'dry run version is 0.0.0-dryrun.<run>' ($v -eq '0.0.0-dryrun.42')
+        Check 'dry run version is 0.1.0-dryrun.<run>' ($v -eq '0.1.0-dryrun.42')
         Check 'dry run notes use Unreleased and link the commit' ($text.Contains('- Next thing.') -and -not $text.Contains('First release') -and $text.Contains("$RepositoryUrl/tree/$onMain"))
     }
     finally {

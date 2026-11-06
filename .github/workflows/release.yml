@@ -1,6 +1,6 @@
 # Release: build, test, pack and scan the PROD installer; publish it only for a version tag on main.
 # - A pushed tag vX.Y.Z on a commit of main: the release job, then the publish job (GitHub Release).
-# - workflow_dispatch: the dry run. Same release job with version 0.0.0-dryrun.<run number>; the
+# - workflow_dispatch: the dry run. Same release job with version 0.1.0-dryrun.<run number>; the
 #   installer and its notes stay a workflow artifact. The publish job never runs for it.
 # Only the PROD edition is ever packed here; DEV is never published (docs/architecture.md, "Releases").
 name: Release

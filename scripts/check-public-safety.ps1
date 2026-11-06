@@ -37,11 +37,14 @@
     Scan packed output before it is published (scripts/pack.ps1 runs it): one or more folders, such as
     the Velopack output and the publish folder. Every .nupkg is expanded and scanned too, and each
     Setup.exe must embed its full package byte for byte.
-      Own files (MordWare.*, Assets, the legal texts, package metadata, the Setup.exe stub) must pass
-      the user-path, this-user (this PC's profile path, user or computer name), package-hash, email,
-      private-key and private-word rules, read as ASCII and as UTF-16 text.
+      Own files (MordWare.*, Assets, the legal texts, package metadata) must pass the user-path,
+      this-user (this PC's profile path, user or computer name), package-hash, email, private-key and
+      private-word rules, read as ASCII and as UTF-16 text.
       Every other file is third-party and passes only if it is byte-identical (SHA-256) to a file of
       its upstream package in the NuGet global packages folder or the .NET packs folder.
+      Velopack-derived binaries (the Setup.exe stub, *_ExecutionStub.exe, Squirrel.exe) pass only if
+      every rule hit in them, this-user included, also occurs with the same text in their vendor
+      binary of the pinned vpk package, and they contain no private word.
     The accepted third-party files are reported per upstream package.
 
 .PARAMETER SelfTest
@@ -332,10 +335,13 @@ function Test-OwnPackageBytes {
     $seen = @{}
     $thisUser = '(?i)' + [regex]::Escape($env:USERPROFILE) + '|\b' + [regex]::Escape($env:USERNAME) + '\b|\b' + [regex]::Escape($env:COMPUTERNAME) + '\b'
     foreach ($text in Get-PackageTexts $Bytes) {
+        # One finding per distinct match, with its text in Raw, so a Velopack-derived binary can be
+        # compared exactly with its vendor binary and no new match hides behind a first one.
         foreach ($m in [regex]::Matches($text, $thisUser)) {
-            if (-not $seen.ContainsKey('this-user')) {
-                $seen['this-user'] = 1
-                $found += New-Finding 'this-user' $Name 0 ("this PC's user or computer name " + (Hide-Value $m.Value))
+            $k = "this-user|$($m.Value)"
+            if (-not $seen.ContainsKey($k)) {
+                $seen[$k] = 1
+                $found += New-Finding 'this-user' $Name 0 ("this PC's user or computer name " + (Hide-Value $m.Value)) $m.Value
             }
         }
         # Printable runs only (like `strings`): a binary's neighboring bytes, such as a string's length
@@ -403,7 +409,9 @@ $VelopackDerived = @(
 
 function Test-VelopackDerivedBytes {
     # A Velopack-derived binary passes only if it adds no rule hit to its vendor binaries: every hit
-    # must also occur, with the same text, in one of them. A this-PC or private-word hit always blocks.
+    # must also occur, with the same text, in one of them. That includes this-PC text: Velopack's own
+    # build path inside its pinned vendor binary is upstream content, even on a build PC whose profile
+    # path is the same (a GitHub runner). A private word always blocks.
     param([string]$Name, [byte[]]$Bytes, [string]$VendorFilter, [string]$VendorRoot, [string[]]$DenyWords, [hashtable]$VendorCache)
     if (-not $VendorRoot) {
         return @(New-Finding 'package' $Name 0 'the pinned vpk vendor folder was not found: run dotnet tool restore')
@@ -420,7 +428,7 @@ function Test-VelopackDerivedBytes {
         foreach ($h in $VendorCache[$v.FullName]) { [void]$known.Add("$($h.Rule)|$($h.Raw)") }
     }
     return @(Test-OwnPackageBytes $Name $Bytes $DenyWords | Where-Object {
-            $_.Rule -in 'this-user', 'private-word' -or -not $known.Contains("$($_.Rule)|$($_.Raw)")
+            $_.Rule -eq 'private-word' -or -not $known.Contains("$($_.Rule)|$($_.Raw)")
         })
 }
 
@@ -671,6 +679,30 @@ function Invoke-SelfTest {
         $r = @(Invoke-PackageCheck @($pkgDir) @($upRoot) @() $vendorDir 6>$null)
         if (@($r | Where-Object { $_.Rule -eq 'user-path' -and $_.File -eq 'mordWare_ExecutionStub.exe' }).Count -eq 1) { Write-Host '  ok   [package] Velopack-derived binary adding a hit refused' -ForegroundColor Green }
         else { $failures++; Write-Host '  FAIL [package] Velopack-derived binary adding a hit was not refused exactly once' -ForegroundColor Red }
+
+        # This PC's profile path inside the vendor binary (as on a build PC whose profile equals
+        # Velopack's own build path) is vendor content; this PC's computer name that the vendor binary
+        # lacks still blocks, and a private word blocks even when the vendor binary has it too.
+        $vendorWithProfile = $vendorText + ' panicked at ' + $env:USERPROFILE + $BS + '.cargo' + $BS + 'registry'
+        [System.IO.File]::WriteAllText((Join-Path $vendorDir 'stub.exe'), $vendorWithProfile)
+        [System.IO.File]::WriteAllText((Join-Path $pkgDir 'mordWare_ExecutionStub.exe'), $vendorWithProfile + ' plus our icon')
+        $cases++
+        $r = @(Invoke-PackageCheck @($pkgDir) @($upRoot) @() $vendorDir 6>$null)
+        if ($r.Count -eq 0) { Write-Host '  ok   [package] this-PC text that the vendor binary also has passes' -ForegroundColor Green }
+        else { $failures++; Write-Host '  FAIL [package] this-PC text that the vendor binary also has was refused:' -ForegroundColor Red; Write-Findings $r }
+
+        $cases++
+        [System.IO.File]::WriteAllText((Join-Path $pkgDir 'mordWare_ExecutionStub.exe'), $vendorWithProfile + ' built on ' + $env:COMPUTERNAME)
+        $r = @(Invoke-PackageCheck @($pkgDir) @($upRoot) @() $vendorDir 6>$null)
+        if (@($r | Where-Object { $_.Rule -eq 'this-user' -and $_.File -eq 'mordWare_ExecutionStub.exe' }).Count -eq 1) { Write-Host '  ok   [package] this-PC text that the vendor binary lacks refused' -ForegroundColor Green }
+        else { $failures++; Write-Host '  FAIL [package] this-PC text that the vendor binary lacks was not refused exactly once' -ForegroundColor Red }
+
+        $cases++
+        [System.IO.File]::WriteAllText((Join-Path $vendorDir 'stub.exe'), $vendorText + " by $denyWord")
+        [System.IO.File]::WriteAllText((Join-Path $pkgDir 'mordWare_ExecutionStub.exe'), $vendorText + " by $denyWord")
+        $r = @(Invoke-PackageCheck @($pkgDir) @($upRoot) @($denyWord) $vendorDir 6>$null)
+        if (@($r | Where-Object { $_.Rule -eq 'private-word' -and $_.File -eq 'mordWare_ExecutionStub.exe' }).Count -eq 1) { Write-Host '  ok   [package] private word in a Velopack-derived binary refused, even when the vendor has it' -ForegroundColor Green }
+        else { $failures++; Write-Host '  FAIL [package] private word in a Velopack-derived binary was not refused' -ForegroundColor Red }
     }
     finally {
         if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }

@@ -36,7 +36,7 @@ Run through it before every commit (the git hooks automate most of it) and in fu
 9. **Packages.** Anything packed for distribution (an installer, a release) is scanned before it leaves the PC or the workflow:
    - `scripts/pack.ps1` runs `check-public-safety.ps1 -Package` on its output, and stops on any finding. The release workflow publishes only a package that passed.
    - The binaries are deterministic and path-free (`PathMap`, no PDBs), so the app's own files hold no local path.
-   - Our own files must be clean; a third-party file passes only if it is byte-identical to its upstream package, and Velopack's per-app binaries only if they add nothing to their vendor binaries.
+   - Our own files must be clean; a third-party file passes only if it is byte-identical to its upstream package, and Velopack's per-app binaries only if they add nothing to their vendor binaries (not even text that names the build PC) and contain no private word.
    - Never publish a package by hand, and never publish a DEV package.
 10. **Going public, or a first push.**
    - The full-history scan passes (`check-public-safety.ps1 -History` and `-All`, with the private deny list).
